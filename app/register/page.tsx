@@ -8,14 +8,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useRouter } from "next/navigation"
 
-export default function ServiceProviderRegister() {
+export default function UserRegister() {
   const router = useRouter()
   const [formData, setFormData] = useState({
-    businessName: "",
+    fullName: "",
     email: "",
     phoneNumber: "",
-    licenseNumber: "",
-    serviceType: "veterinarian", // Default value for the service type
     password: "",
     confirmPassword: "",
   })
@@ -33,8 +31,8 @@ export default function ServiceProviderRegister() {
   const validateForm = () => {
     const newErrors = {}
 
-    if (!formData.businessName.trim()) {
-      newErrors.businessName = "Business Name is required"
+    if (!formData.fullName.trim()) {
+      newErrors.fullName = "Full Name is required"
     }
 
     if (!formData.email.trim()) {
@@ -45,10 +43,6 @@ export default function ServiceProviderRegister() {
 
     if (!formData.phoneNumber.trim()) {
       newErrors.phoneNumber = "Phone number is required"
-    }
-
-    if (!formData.licenseNumber.trim()) {
-      newErrors.licenseNumber = "License number is required"
     }
 
     if (!formData.password) {
@@ -75,14 +69,28 @@ export default function ServiceProviderRegister() {
     setIsLoading(true)
 
     try {
-      // Simulate registration process
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...formData,
+          role: 'user' // Set role as user for client registration
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Registration failed')
+      }
 
       // On successful registration, redirect to login page
       router.push("/login?registered=true")
     } catch (error) {
       console.error("Registration error:", error)
-      setErrors({ form: "Registration failed. Please try again." })
+      setErrors({ form: error.message || "Registration failed. Please try again." })
     } finally {
       setIsLoading(false)
     }
@@ -93,26 +101,26 @@ export default function ServiceProviderRegister() {
       <div className="mx-auto max-w-md">
         <Card className="shadow-lg">
           <CardHeader className="space-y-1">
-            <CardTitle className="text-3xl font-semibold text-center text-primary">Create a Service Provider Account</CardTitle>
+            <CardTitle className="text-3xl font-semibold text-center text-primary">Create an Account</CardTitle>
             <CardDescription className="text-center text-muted-foreground">
-              Enter your information to register as a service provider
+              Enter your information to register as a pet owner
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6 mt-4">
-              {/* Business Name */}
+              {/* Full Name */}
               <div className="space-y-2">
-                <Label htmlFor="businessName">Business Name</Label>
+                <Label htmlFor="fullName">Full Name</Label>
                 <Input
-                  id="businessName"
-                  name="businessName"
-                  placeholder="Your Business Name"
-                  value={formData.businessName}
+                  id="fullName"
+                  name="fullName"
+                  placeholder="Your Full Name"
+                  value={formData.fullName}
                   onChange={handleChange}
                   className="border-2 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-primary"
                   required
                 />
-                {errors.businessName && <p className="text-sm text-red-500">{errors.businessName}</p>}
+                {errors.fullName && <p className="text-sm text-red-500">{errors.fullName}</p>}
               </div>
 
               {/* Email */}
@@ -122,7 +130,7 @@ export default function ServiceProviderRegister() {
                   id="email"
                   name="email"
                   type="email"
-                  placeholder="yourbusiness@example.com"
+                  placeholder="you@example.com"
                   value={formData.email}
                   onChange={handleChange}
                   className="border-2 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-primary"
@@ -144,39 +152,6 @@ export default function ServiceProviderRegister() {
                   required
                 />
                 {errors.phoneNumber && <p className="text-sm text-red-500">{errors.phoneNumber}</p>}
-              </div>
-
-              {/* License Number */}
-              <div className="space-y-2">
-                <Label htmlFor="licenseNumber">License Number</Label>
-                <Input
-                  id="licenseNumber"
-                  name="licenseNumber"
-                  placeholder="Your License Number"
-                  value={formData.licenseNumber}
-                  onChange={handleChange}
-                  className="border-2 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-primary"
-                  required
-                />
-                {errors.licenseNumber && <p className="text-sm text-red-500">{errors.licenseNumber}</p>}
-              </div>
-
-              {/* Service Type */}
-              <div className="space-y-2">
-                <Label htmlFor="serviceType">Service Type</Label>
-                <select
-                  id="serviceType"
-                  name="serviceType"
-                  value={formData.serviceType}
-                  onChange={handleChange}
-                  className="border-2 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-primary"
-                  required
-                >
-                  <option value="veterinarian">Veterinarian</option>
-                  <option value="pharmacy">Pharmacy</option>
-                  <option value="other">Other Pet Service Provider</option>
-                </select>
-                {errors.serviceType && <p className="text-sm text-red-500">{errors.serviceType}</p>}
               </div>
 
               {/* Password */}
@@ -234,6 +209,12 @@ export default function ServiceProviderRegister() {
               Already have an account?{" "}
               <Link href="/login" className="underline underline-offset-4 hover:text-primary">
                 Sign in
+              </Link>
+            </div>
+            <div className="text-sm text-center">
+              Are you a service provider?{" "}
+              <Link href="/service-provider-register" className="underline underline-offset-4 hover:text-primary">
+                Register as a service provider
               </Link>
             </div>
           </CardFooter>

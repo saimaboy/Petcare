@@ -66,14 +66,42 @@ export default function Login() {
     setIsLoading(true)
 
     try {
-      // In a real application, this would be an API call to authenticate the user
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      // Make API call to authenticate the user
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      })
 
-      // Simulate successful login
-      router.push("/dashboard")
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Login failed')
+      }
+
+      // Store token in localStorage
+      localStorage.setItem('token', data.token)
+      localStorage.setItem('userRole', data.user.role)
+
+      // Redirect based on user role
+      switch(data.user.role) {
+        case 'veterinarian':
+          router.push('/vet-dashboard')
+          break
+        case 'pharmacist':
+          router.push('/pharmacy-dashboard')
+          break
+        case 'user':
+          router.push('/dashboard')
+          break
+        default:
+          router.push('/dashboard')
+      }
     } catch (error) {
       console.error("Login error:", error)
-      setErrors({ form: "Invalid email or password" })
+      setErrors({ form: error.message || "Invalid email or password" })
     } finally {
       setIsLoading(false)
     }
@@ -132,11 +160,17 @@ export default function Login() {
               </Button>
             </form>
           </CardContent>
-          <CardFooter className="flex justify-center">
+          <CardFooter className="flex flex-col space-y-4">
             <div className="text-sm text-center">
               Don't have an account?{" "}
               <Link href="/register" className="underline underline-offset-4 hover:text-primary">
-                Create an account
+                Create a client account
+              </Link>
+            </div>
+            <div className="text-sm text-center">
+              Are you a service provider?{" "}
+              <Link href="/service-provider-register" className="underline underline-offset-4 hover:text-primary">
+                Register as a service provider
               </Link>
             </div>
           </CardFooter>
@@ -145,4 +179,3 @@ export default function Login() {
     </div>
   )
 }
-
