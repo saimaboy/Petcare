@@ -8,10 +8,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useRouter } from "next/navigation"
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+
 export default function UserRegister() {
   const router = useRouter()
   const [formData, setFormData] = useState({
-    fullName: "",
+    name: "", // Changed from fullName to name to match backend
     email: "",
     phoneNumber: "",
     password: "",
@@ -31,8 +33,8 @@ export default function UserRegister() {
   const validateForm = () => {
     const newErrors = {}
 
-    if (!formData.fullName.trim()) {
-      newErrors.fullName = "Full Name is required"
+    if (!formData.name.trim()) {
+      newErrors.name = "Full Name is required"
     }
 
     if (!formData.email.trim()) {
@@ -69,15 +71,20 @@ export default function UserRegister() {
     setIsLoading(true)
 
     try {
-      const response = await fetch('/api/auth/register', {
+      // Use the full URL to your Express backend
+      const response = await fetch(`${API_URL}/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          ...formData,
+          name: formData.name, // Send name not fullName
+          email: formData.email,
+          phoneNumber: formData.phoneNumber,
+          password: formData.password,
           role: 'user' // Set role as user for client registration
         }),
+        credentials: 'include', // Important for cookies if you're using them
       })
 
       const data = await response.json()
@@ -86,7 +93,12 @@ export default function UserRegister() {
         throw new Error(data.message || 'Registration failed')
       }
 
-      // On successful registration, redirect to login page
+      // Store token in localStorage if your app uses it
+      if (data.token) {
+        localStorage.setItem('token', data.token)
+      }
+
+      // On successful registration, redirect to login page or dashboard
       router.push("/login?registered=true")
     } catch (error) {
       console.error("Registration error:", error)
@@ -110,17 +122,17 @@ export default function UserRegister() {
             <form onSubmit={handleSubmit} className="space-y-6 mt-4">
               {/* Full Name */}
               <div className="space-y-2">
-                <Label htmlFor="fullName">Full Name</Label>
+                <Label htmlFor="name">Full Name</Label>
                 <Input
-                  id="fullName"
-                  name="fullName"
+                  id="name"
+                  name="name"
                   placeholder="Your Full Name"
-                  value={formData.fullName}
+                  value={formData.name}
                   onChange={handleChange}
                   className="border-2 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-primary"
                   required
                 />
-                {errors.fullName && <p className="text-sm text-red-500">{errors.fullName}</p>}
+                {errors.name && <p className="text-sm text-red-500">{errors.name}</p>}
               </div>
 
               {/* Email */}
@@ -213,7 +225,7 @@ export default function UserRegister() {
             </div>
             <div className="text-sm text-center">
               Are you a service provider?{" "}
-              <Link href="/service-provider-register" className="underline underline-offset-4 hover:text-primary">
+              <Link href="/serviceproviderregister" className="underline underline-offset-4 hover:text-primary">
                 Register as a service provider
               </Link>
             </div>

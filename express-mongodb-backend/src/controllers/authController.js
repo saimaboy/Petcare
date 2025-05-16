@@ -10,6 +10,12 @@ const sendEmail = require('../utils/sendEmail');
 exports.register = asyncHandler(async (req, res, next) => {
   const { name, email, password, phoneNumber, role, licenseNumber, serviceType, businessName } = req.body;
 
+  // Check if user already exists
+  const existingUser = await User.findOne({ email });
+  if (existingUser) {
+    return next(new ErrorResponse('Email already registered', 400));
+  }
+
   // Create user
   const user = await User.create({
     name,
@@ -200,7 +206,8 @@ const sendTokenResponse = (user, statusCode, res) => {
 
   const options = {
     expires: new Date(
-      Date.now() + process.env.JWT_COOKIE_EXPIRE * 24 * 60 * 60 * 1000
+      // Use a default value (30 days) if JWT_COOKIE_EXPIRE is not set
+      Date.now() + (parseInt(process.env.JWT_COOKIE_EXPIRE) || 30) * 24 * 60 * 60 * 1000
     ),
     httpOnly: true
   };

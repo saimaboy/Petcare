@@ -1,11 +1,18 @@
 const express = require('express');
-const UserController = require('../controllers/userController');
+const { 
+  getUserDashboard,
+  getUserProfile, 
+  updateUserProfile 
+} = require('../controllers/userController');
+const { protect } = require('../middleware/auth');
 
 const router = express.Router();
-const userController = new UserController();
 
-router.post('/users', userController.createUser.bind(userController));
-router.get('/users/:id', userController.getUser.bind(userController));
-router.delete('/users/:id', userController.deleteUser.bind(userController));
+// Protect all routes in this router
+router.use(protect);
+
+router.get('/dashboard', getUserDashboard);
+router.get('/profile', getUserProfile);
+router.put('/profile', updateUserProfile);
 
 module.exports = router;
