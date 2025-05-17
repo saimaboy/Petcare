@@ -6,16 +6,9 @@ const morgan = require('morgan');
 const path = require('path');
 const config = require('./config/config');
 const errorHandler = require('./middleware/error');
+const productRoutes = require('./routes/productRoutes');
 
-// Import routes
-const userRoutes = require('./routes/userRoutes');
-const petRoutes = require('./routes/petRoutes');
-const prescriptionRoutes = require('./routes/prescriptionRoutes');
-const vetRoutes = require('./routes/vetRoutes');
-const authRoutes = require('./routes/auth');
-// Add this line
-const veterinarianRoutes = require('./routes/vetRoutes');
-
+// Initialize app FIRST
 const app = express();
 
 // Middleware
@@ -40,14 +33,22 @@ if (config.NODE_ENV === 'development') {
 // Static folder
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Import routes
+const userRoutes = require('./routes/userRoutes');
+const petRoutes = require('./routes/petRoutes');
+const prescriptionRoutes = require('./routes/prescriptionRoutes');
+const vetRoutes = require('./routes/vetRoutes');
+const authRoutes = require('./routes/auth');
+const veterinarianRoutes = require('./routes/vetRoutes');
+
 // Use routes
 app.use('/api/users', userRoutes);
 app.use('/api/pets', petRoutes);
 app.use('/api/prescriptions', prescriptionRoutes);  
 app.use('/api/vets', vetRoutes);
 app.use('/api/auth', authRoutes);
-// Add this line
 app.use('/api/veterinarians', veterinarianRoutes);
+app.use('/api/products', productRoutes);
 
 // 404 handler
 app.use((req, res) => {

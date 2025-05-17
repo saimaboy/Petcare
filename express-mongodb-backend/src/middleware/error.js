@@ -1,15 +1,22 @@
 const ErrorResponse = require('../utils/errorResponse');
 
+/**
+ * Error handler middleware
+ * @param {Error} err - Error object
+ * @param {Request} req - Express request object
+ * @param {Response} res - Express response object
+ * @param {Function} next - Express next function
+ */
 const errorHandler = (err, req, res, next) => {
   let error = { ...err };
   error.message = err.message;
-  
+
   // Log to console for dev
-  console.log(err);
-  
+  console.error(err);
+
   // Mongoose bad ObjectId
   if (err.name === 'CastError') {
-    const message = `Resource not found with id of ${err.value}`;
+    const message = `Resource not found`;
     error = new ErrorResponse(message, 404);
   }
 

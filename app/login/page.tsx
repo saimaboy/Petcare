@@ -10,9 +10,6 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { CheckCircle2 } from "lucide-react"
 
-// Fix 1: Define API_URL constant
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-
 export default function Login() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -59,50 +56,56 @@ export default function Login() {
     return Object.keys(newErrors).length === 0
   }
 
-  // Fix the handleSubmit function
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    
+    e.preventDefault()
+
     if (!validateForm()) {
-      return;
+      return
     }
-    
-    setIsLoading(true);
-    
+
+    setIsLoading(true)
+
     try {
-      const response = await fetch(`${API_URL}/auth/login`, {
+      // Make API call to authenticate the user
+      const response = await fetch('http://localhost:5000/api/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-        }),
-      });
-      
-      const data = await response.json();
-      
+        body: JSON.stringify(formData),
+      })
+
+      const data = await response.json()
+
       if (!response.ok) {
-        throw new Error(data.error || 'Login failed');
+        throw new Error(data.message || 'Login failed')
       }
-      
-      // Store token AND user ID in localStorage
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('userId', data.user.id);
-      
-      // Fix 2: Use searchParams instead of router.query
-      const redirectTo = searchParams.get('redirect') || '/';
-      router.push(redirectTo);
-      
+
+      // Store token in localStorage
+      localStorage.setItem('token', data.token)
+      localStorage.setItem('userRole', data.user.role)
+
+      // Redirect based on user role
+      switch(data.user.role) {
+        case 'veterinarian':
+          router.push('/vet-dashboard')
+          break
+        case 'pharmacist':
+          router.push('/pharmacy-dashboard')
+          break
+        case 'user':
+          router.push('/')
+          break
+        default:
+          router.push('/')
+      }
     } catch (error) {
-      console.error("Login error:", error);
-      // Fix 3: Use setErrors instead of setError
-      setErrors({ form: error.message });
+      console.error("Login error:", error)
+      setErrors({ form: error.message || "Invalid email or password" })
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
   return (
     <div className="container py-8 md:py-12">
@@ -166,7 +169,7 @@ export default function Login() {
             </div>
             <div className="text-sm text-center">
               Are you a service provider?{" "}
-              <Link href="/serviceproviderregister" className="underline underline-offset-4 hover:text-primary">
+              <Link href="/service-provider-register" className="underline underline-offset-4 hover:text-primary">
                 Register as a service provider
               </Link>
             </div>
