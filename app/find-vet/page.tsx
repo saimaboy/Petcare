@@ -84,13 +84,35 @@ useEffect(() => {
   const handleVetSelect = (vet) => {
     setSelectedVet(vet)
   }
+const handleBookAppointment = async () => {
+  if (!selectedVet || !selectedDate || !selectedTime) return;
 
-  const handleBookAppointment = () => {
-    alert(`Appointment booked with ${selectedVet.name} on ${selectedDate} at ${selectedTime}`)
-    setSelectedVet(null)
-    setSelectedDate(null)
-    setSelectedTime("")
+  try {
+    const res = await fetch("http://localhost:5000/api/appointments", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        // If user authentication is needed, add Authorization header here
+      },
+      body: JSON.stringify({
+        vetId: selectedVet.id,
+        vetName: selectedVet.name,
+        vetBusiness: selectedVet.businessName,
+        date: selectedDate,
+        time: selectedTime,
+        // Optionally add user info if logged in
+      }),
+    });
+
+    if (!res.ok) throw new Error("Failed to book appointment");
+    alert(`Appointment booked with ${selectedVet.name} on ${selectedDate} at ${selectedTime}`);
+    setSelectedVet(null);
+    setSelectedDate(null);
+    setSelectedTime("");
+  } catch (err) {
+    alert("Failed to book appointment. Please try again.");
   }
+};
 
   if (loading) {
     return (

@@ -5,83 +5,167 @@ import { useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar, Clock, Users, User, Settings, Plus, ArrowRight, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import { Calendar, Clock, Users, User, Settings, Plus, ArrowRight, CheckCircle, AlertCircle, Loader2, BookOpen } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Input } from "@/components/ui/input";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
 export default function VetDashboard() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("overview");
-  const [vetData, setVetData] = useState(null);
+  const [vetData, setVetData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
-  
-  // Placeholder data - would be fetched from API in production
-  const upcomingAppointments = [
-    { id: "1", petName: "Max", ownerName: "John Doe", time: "10:00 AM", date: "Today", reason: "Vaccination" },
-    { id: "2", petName: "Bella", ownerName: "Sarah Smith", time: "11:30 AM", date: "Today", reason: "Check-up" },
-    { id: "3", petName: "Charlie", ownerName: "Mike Johnson", time: "2:15 PM", date: "Today", reason: "Skin condition" },
-    { id: "4", petName: "Luna", ownerName: "Emily Wilson", time: "9:45 AM", date: "Tomorrow", reason: "Annual exam" }
-  ];
-  
+  const [error, setError] = useState<string | null>(null);
+const [selectedImage, setSelectedImage] = useState<File | null>(null);
+const [imagePreview, setImagePreview] = useState<string | null>(null);
+const [upcomingAppointments, setUpcomingAppointments] = useState<any[]>([]);
+const [appointmentsLoading, setAppointmentsLoading] = useState(true);
+const [appointmentsError, setAppointmentsError] = useState<string | null>(null);
+
+const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (file) {
+    setSelectedImage(file);
+    setImagePreview(URL.createObjectURL(file));
+  }
+};
+  // Article state
+  const [showArticleForm, setShowArticleForm] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [articleError, setArticleError] = useState<string | null>(null);
+  const [myArticles, setMyArticles] = useState<any[]>([]);
+  const [newArticle, setNewArticle] = useState({
+    title: "",
+    category: "",
+    excerpt: "",
+    content: "",
+    image: ""
+  });
+
+  // Placeholder data for dashboard
+
   const recentPatients = [
     { id: "101", name: "Max", species: "Dog", breed: "Golden Retriever", age: "4 years", owner: "John Doe", lastVisit: "Today" },
     { id: "102", name: "Whiskers", species: "Cat", breed: "Siamese", age: "2 years", owner: "Lisa Chen", lastVisit: "Yesterday" },
     { id: "103", name: "Daisy", species: "Dog", breed: "Beagle", age: "6 years", owner: "Robert Brown", lastVisit: "3 days ago" }
   ];
-  
-  // Fetch vet data on component mount
+
+  // Fetch vet data and articles
   useEffect(() => {
     const fetchVetData = async () => {
       try {
         const token = localStorage.getItem('token');
-        
         if (!token) {
           router.push('/login?redirect=/vet-dashboard');
           return;
         }
-        
         const response = await fetch(`${API_URL}/auth/me`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           }
         });
-        
         if (response.status === 401) {
           localStorage.removeItem('token');
           localStorage.removeItem('userId');
           router.push('/login?redirect=/vet-dashboard');
           return;
         }
-        
         if (!response.ok) {
           throw new Error(`Failed to fetch vet data: ${response.statusText}`);
         }
-        
         const data = await response.json();
-        
         if (data.data.role !== 'veterinarian') {
           router.push('/dashboard');
           return;
         }
-        
         setVetData(data.data);
+        // Fetch articles authored by this vet
+        fetchMyArticles(token, data.data._id);
       } catch (error) {
-        console.error("Error fetching vet data:", error);
         setError("Failed to load your profile. Please try again later.");
       } finally {
         setIsLoading(false);
       }
     };
-    
     fetchVetData();
   }, [router]);
-  
-  // Placeholder stats - would be fetched from API
+
+  const fetchMyArticles = async (token: string, vetId: string) => {
+    try {
+      const res = await fetch(`${API_URL}/articles`);
+      const data = await res.json();
+      // Only show articles authored by this vet
+      setMyArticles((data.data || []).filter((a: any) => a.author === vetId));
+    } catch {
+      setMyArticles([]);
+    }
+  };
+
+  useEffect(() => {
+  const fetchAppointments = async () => {
+    setAppointmentsLoading(true);
+    setAppointmentsError(null);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_URL}/appointments/vet`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error("Failed to fetch appointments");
+      const data = await res.json();
+      // Optionally filter for today/tomorrow here if your backend doesn't do it
+      setUpcomingAppointments(data.data || []);
+    } catch (err: any) {
+      setAppointmentsError(err.message || "Failed to load appointments");
+    } finally {
+      setAppointmentsLoading(false);
+    }
+  };
+  fetchAppointments();
+}, []);
+
+  // Article form handlers
+const handleAddArticle = async (e: any) => {
+  e.preventDefault();
+  setIsSubmitting(true);
+  setArticleError(null);
+  try {
+    const token = localStorage.getItem('token');
+    const formData = new FormData();
+    formData.append("title", newArticle.title);
+    formData.append("category", newArticle.category);
+    formData.append("excerpt", newArticle.excerpt);
+    formData.append("content", newArticle.content);
+    if (selectedImage) {
+      formData.append("image", selectedImage);
+    }
+
+    const res = await fetch(`${API_URL}/articles`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        // Do NOT set Content-Type for FormData!
+      },
+      body: formData
+    });
+    if (!res.ok) throw new Error("Failed to add article");
+    const data = await res.json();
+    setMyArticles([data.data, ...myArticles]);
+    setShowArticleForm(false);
+    setNewArticle({ title: "", category: "", excerpt: "", content: "", image: "" });
+    setSelectedImage(null);
+    setImagePreview(null);
+  } catch (err: any) {
+    setArticleError(err.message || "Failed to add article");
+  } finally {
+    setIsSubmitting(false);
+  }
+};
+
+  // Placeholder stats
   const dashboardStats = {
     appointmentsToday: 8,
     patientsTotal: 156,
@@ -90,14 +174,16 @@ export default function VetDashboard() {
   };
 
   const handleLogout = () => {
-  // Clear authentication data
-  localStorage.removeItem('token');
-  localStorage.removeItem('userId');
- 
-  console.log('Successfully logged out');
-  router.push('/login');
+    localStorage.removeItem('token');
+    localStorage.removeItem('userId');
+    router.push('/login');
+  };
+const handleArticleInput = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  setNewArticle({
+    ...newArticle,
+    [e.target.name]: e.target.value,
+  });
 };
-  
   if (isLoading) {
     return (
       <div className="container mx-auto py-16 flex justify-center items-center min-h-[400px]">
@@ -108,7 +194,7 @@ export default function VetDashboard() {
       </div>
     );
   }
-  
+
   if (error) {
     return (
       <div className="container mx-auto py-16">
@@ -136,14 +222,17 @@ export default function VetDashboard() {
           </Button>
         </div>
       </div>
-      
+
       <Tabs defaultValue="overview" value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid grid-cols-5 mb-8">
+        <TabsList className="grid grid-cols-6 mb-8">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="appointments">Appointments</TabsTrigger>
           <TabsTrigger value="availability">Availability</TabsTrigger>
           <TabsTrigger value="patients">Patients</TabsTrigger>
           <TabsTrigger value="profile">Profile</TabsTrigger>
+          <TabsTrigger value="articles">
+            <BookOpen className="mr-2 h-4 w-4" /> Knowledge Hub
+          </TabsTrigger>
         </TabsList>
         
         <TabsContent value="overview">
@@ -204,41 +293,57 @@ export default function VetDashboard() {
           
           <div className="grid gap-6 md:grid-cols-2 mb-8">
             {/* Upcoming Appointments */}
-            <Card className="col-span-1">
-              <CardHeader>
-                <CardTitle>Upcoming Appointments</CardTitle>
-                <CardDescription>Your schedule for today and tomorrow</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {upcomingAppointments.map((appointment) => (
-                    <div key={appointment.id} className="flex items-start justify-between border-b pb-4 last:border-0 last:pb-0">
-                      <div className="flex items-start gap-4">
-                        <Avatar className="h-10 w-10 border">
-                          <AvatarFallback>{appointment.petName.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-medium">{appointment.petName}</p>
-                          <p className="text-sm text-muted-foreground">Owner: {appointment.ownerName}</p>
-                          <p className="text-sm text-muted-foreground">{appointment.reason}</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <Badge variant={appointment.date === "Today" ? "default" : "outline"}>
-                          {appointment.date}
-                        </Badge>
-                        <p className="mt-1 text-sm font-medium">{appointment.time}</p>
-                      </div>
-                    </div>
-                  ))}
+<Card className="col-span-1">
+  <CardHeader>
+    <CardTitle>Upcoming Appointments</CardTitle>
+    <CardDescription>Your schedule for today and tomorrow</CardDescription>
+  </CardHeader>
+  <CardContent>
+    {appointmentsLoading ? (
+      <div className="text-center py-4">Loading...</div>
+    ) : appointmentsError ? (
+      <div className="text-center text-red-500 py-4">{appointmentsError}</div>
+    ) : (
+      <div className="space-y-4">
+        {upcomingAppointments.length === 0 ? (
+          <div className="text-muted-foreground text-center">No upcoming appointments.</div>
+        ) : (
+          upcomingAppointments.map((appointment) => (
+            <div key={appointment._id} className="flex items-start justify-between border-b pb-4 last:border-0 last:pb-0">
+              <div className="flex items-start gap-4">
+                <Avatar className="h-10 w-10 border">
+                  <AvatarFallback>
+                    {appointment.petName ? appointment.petName.charAt(0) : "P"}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <p className="font-medium">{appointment.petName || "Pet"}</p>
+                  <p className="text-sm text-muted-foreground">
+                    Owner: {appointment.ownerName || "Unknown"}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {appointment.reason || ""}
+                  </p>
                 </div>
-                <div className="mt-4">
-                  <Button variant="outline" className="w-full" onClick={() => setActiveTab("appointments")}>
-                    View All Appointments <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+              </div>
+              <div className="text-right">
+                <Badge variant={appointment.date === "Today" ? "default" : "outline"}>
+                  {appointment.date || appointment.appointmentDate}
+                </Badge>
+                <p className="mt-1 text-sm font-medium">{appointment.time || ""}</p>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    )}
+    <div className="mt-4">
+      <Button variant="outline" className="w-full" onClick={() => setActiveTab("appointments")}>
+        View All Appointments <ArrowRight className="ml-2 h-4 w-4" />
+      </Button>
+    </div>
+  </CardContent>
+</Card>
             
             {/* Recent Patients */}
             <Card className="col-span-1">
@@ -448,6 +553,111 @@ export default function VetDashboard() {
             </CardContent>
           </Card>
         </TabsContent>
+
+ <TabsContent value="articles">
+  <Card>
+    <CardHeader>
+      <div className="flex justify-between items-center">
+        <CardTitle>Knowledge Hub: Your Articles</CardTitle>
+        <Button size="sm" onClick={() => setShowArticleForm(!showArticleForm)}>
+          <Plus className="mr-2 h-4 w-4" /> {showArticleForm ? "Cancel" : "Add Article"}
+        </Button>
+      </div>
+      <CardDescription>
+        Share your expertise with pet owners by publishing articles to the Knowledge Hub.
+      </CardDescription>
+    </CardHeader>
+    <CardContent>
+      {showArticleForm && (
+        <form onSubmit={handleAddArticle} className="space-y-3 mb-6" encType="multipart/form-data">
+          <Input
+            name="title"
+            placeholder="Title"
+            value={newArticle.title}
+            onChange={handleArticleInput}
+            required
+          />
+          <select
+            name="category"
+            value={newArticle.category}
+            onChange={handleArticleInput}
+            required
+            className="w-full border rounded p-2"
+          >
+            <option value="">Select Category</option>
+            <option value="Cats">Cats</option>
+            <option value="Small Pets">Small Pets</option>
+            <option value="Dogs">Dogs</option>
+            <option value="Birds">Birds</option>
+            <option value="Fish">Fish</option>
+          </select>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleImageChange}
+          />
+          {imagePreview && (
+            <img
+              src={imagePreview}
+              alt="Preview"
+              className="w-48 h-32 object-cover rounded mb-2"
+            />
+          )}
+          <Input
+            name="excerpt"
+            placeholder="Short Excerpt"
+            value={newArticle.excerpt}
+            onChange={handleArticleInput}
+            required
+          />
+          <textarea
+            name="content"
+            placeholder="Full Article Content"
+            value={newArticle.content}
+            onChange={handleArticleInput}
+            required
+            className="w-full min-h-[100px] border rounded p-2"
+          />
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? "Adding..." : "Add Article"}
+          </Button>
+          {articleError && <div className="text-red-500">{articleError}</div>}
+        </form>
+      )}
+
+      <div>
+        {myArticles.length === 0 ? (
+          <p className="text-muted-foreground">You haven't published any articles yet.</p>
+        ) : (
+          <div className="grid gap-4">
+            {myArticles.map((article) => (
+              <Card key={article._id}>
+                <div className="flex flex-col md:flex-row">
+                  {article.image && (
+                    <img
+                      src={article.image}
+                      alt={article.title}
+                      className="w-full md:w-48 h-32 object-cover rounded-l"
+                    />
+                  )}
+                  <div className="flex-1 p-4">
+                    <h3 className="font-semibold text-lg">{article.title}</h3>
+                    <p className="text-sm text-muted-foreground">{article.category}</p>
+                    <p className="mt-2">{article.excerpt}</p>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Published: {new Date(article.date).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    </CardContent>
+  </Card>
+</TabsContent>
+
       </Tabs>
     </div>
   );

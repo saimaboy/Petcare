@@ -7,6 +7,7 @@ const path = require('path');
 const config = require('./config/config');
 const errorHandler = require('./middleware/error');
 const productRoutes = require('./routes/productRoutes');
+const articleRoutes = require('./routes/articleRoutes');
 
 // Initialize app FIRST
 const app = express();
@@ -40,6 +41,7 @@ const prescriptionRoutes = require('./routes/prescriptionRoutes');
 const vetRoutes = require('./routes/vetRoutes');
 const authRoutes = require('./routes/auth');
 const veterinarianRoutes = require('./routes/vetRoutes');
+const appointmentRoutes = require('./routes/appointmentRoutes');
 
 // Use routes
 app.use('/api/users', userRoutes);
@@ -49,6 +51,9 @@ app.use('/api/vets', vetRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/veterinarians', veterinarianRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/articles', articleRoutes);
+app.use('/uploads', express.static('uploads'));
+app.use('/api/appointments', appointmentRoutes);
 
 // 404 handler
 app.use((req, res) => {
