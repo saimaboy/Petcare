@@ -3,6 +3,12 @@ const asyncHandler = require('../middleware/async');
 const ErrorResponse = require('../utils/errorResponse');
 
 // Get all products
+exports.getProducts = asyncHandler(async (req, res, next) => {
+  const products = await Product.find();
+  res.status(200).json({ success: true, count: products.length, data: products });
+});
+
+// Get pharmacy products
 exports.getPharmacyProducts = asyncHandler(async (req, res, next) => {
   const products = await Product.find({ pharmacy: req.user.id });
   res.status(200).json({ success: true, count: products.length, data: products });
@@ -19,8 +25,13 @@ exports.getProduct = asyncHandler(async (req, res, next) => {
 
 // Create new product
 exports.createProduct = asyncHandler(async (req, res, next) => {
-req.body.pharmacy = req.user.id;
-req.body.pharmacyName = req.user.businessName || req.user.name;
+  req.body.pharmacy = req.user.id;
+  req.body.pharmacyName = req.user.businessName || req.user.name;
+
+  // Handle image upload if req.file exists
+  if (req.file) {
+    req.body.image = `/uploads/${req.file.filename}`;
+  }
 
   const product = await Product.create(req.body);
 
@@ -48,6 +59,11 @@ exports.updateProduct = asyncHandler(async (req, res, next) => {
 
   req.body.pharmacy = req.user.id;
   req.body.pharmacyName = req.user.businessName || req.user.name;
+
+  // Handle image upload if req.file exists
+  if (req.file) {
+    req.body.image = `/uploads/${req.file.filename}`;
+  }
 
   product = await Product.findByIdAndUpdate(req.params.id, req.body, {
     new: true,
@@ -84,23 +100,19 @@ exports.deleteProduct = asyncHandler(async (req, res, next) => {
   });
 });
 
-// Get products for the current pharmacy
-exports.getPharmacyProducts = asyncHandler(async (req, res, next) => {
-  const products = await Product.find({ pharmacy: req.user.id });
-  res.status(200).json({ success: true, count: products.length, data: products });
-});
-
 // Search products
 exports.searchProducts = asyncHandler(async (req, res, next) => {
   const { query } = req.query;
   if (!query) {
     return res.status(200).json({ success: true, data: [] });
   }
+  
   const products = await Product.find({
     $or: [
       { name: { $regex: query, $options: 'i' } },
       { description: { $regex: query, $options: 'i' } }
     ]
   });
+  
   res.status(200).json({ success: true, count: products.length, data: products });
 });

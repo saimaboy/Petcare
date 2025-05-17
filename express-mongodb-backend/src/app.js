@@ -55,6 +55,7 @@ app.use('/api/articles', articleRoutes);
 app.use('/uploads', express.static('uploads'));
 app.use('/api/appointments', appointmentRoutes);
 
+
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({ 
