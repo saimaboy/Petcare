@@ -24,6 +24,9 @@ const [imagePreview, setImagePreview] = useState<string | null>(null);
 const [upcomingAppointments, setUpcomingAppointments] = useState<any[]>([]);
 const [appointmentsLoading, setAppointmentsLoading] = useState(true);
 const [appointmentsError, setAppointmentsError] = useState<string | null>(null);
+const [profilePic, setProfilePic] = useState<string | null>(null);
+const [profilePicFile, setProfilePicFile] = useState<File | null>(null);
+const [isUploadingProfilePic, setIsUploadingProfilePic] = useState(false);
 
 const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
   const file = e.target.files?.[0];

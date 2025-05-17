@@ -93,7 +93,11 @@ const UserSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
-  
+    profileImage: {
+    type: String,
+    default: null
+  },
+  // 
   // Password reset fields
   resetPasswordToken: String,
   resetPasswordExpire: Date

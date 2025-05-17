@@ -1,11 +1,13 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Loader2, User, MapPin, Phone, Mail, Building, Award } from "lucide-react"
+import { Loader2, User, MapPin, Phone, Mail, Building, Award, Camera, X } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
@@ -14,6 +16,9 @@ export default function UserProfile() {
   const [user, setUser] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [profileImage, setProfileImage] = useState(null)
+  const [isUploadingImage, setIsUploadingImage] = useState(false)
+  const fileInputRef = useRef(null)
 
   // Fetch user data on component mount
   useEffect(() => {
@@ -67,6 +72,11 @@ export default function UserProfile() {
         
         console.log('User data retrieved successfully');
         setUser(data.data);
+        
+        // Set profile image if available
+        if (data.data.profileImage) {
+          setProfileImage(data.data.profileImage);
+        }
       } catch (error) {
         console.error("Error fetching user data:", error);
         setError("Failed to load profile data. Please try again later.");
@@ -89,34 +99,97 @@ export default function UserProfile() {
     router.push('/profile/edit');
   };
 
-  // Debugging helper
-  const debugToken = () => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      console.log('Token found:', token.substring(0, 20) + '...');
-      try {
-        // Decode the token (client-side only, not secure verification)
-        const base64Url = token.split('.')[1];
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const jsonPayload = decodeURIComponent(atob(base64).split('').map((c) => {
-          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-        }).join(''));
-        
-        const payload = JSON.parse(jsonPayload);
-        console.log('Token payload:', payload);
-        console.log('Expiry:', new Date(payload.exp * 1000).toLocaleString());
-      } catch (e) {
-        console.error('Error decoding token:', e);
+  const handleProfileImageClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleProfileImageChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsUploadingImage(true);
+      
+      // Create form data
+      const formData = new FormData();
+      formData.append('profileImage', file);
+      
+      // Get token
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('Authentication required');
       }
-    } else {
-      console.log('No token found');
+      
+      // Upload image
+      const response = await fetch(`${API_URL}/users/profile-image`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to upload profile image');
+      }
+      
+      const result = await response.json();
+      
+      if (result.success && result.profileImage) {
+        setProfileImage(result.profileImage);
+        
+        // Update user object with new profile image
+        setUser(prev => ({
+          ...prev,
+          profileImage: result.profileImage
+        }));
+      }
+    } catch (error) {
+      console.error('Error uploading profile image:', error);
+      alert('Failed to upload profile image. Please try again.');
+    } finally {
+      setIsUploadingImage(false);
     }
   };
 
-  // Call debug function
-  useEffect(() => {
-    debugToken();
-  }, []);
+  const removeProfileImage = async () => {
+    try {
+      setIsUploadingImage(true);
+      
+      // Get token
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+      
+      // Remove image
+      const response = await fetch(`${API_URL}/users/profile-image`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to remove profile image');
+      }
+      
+      // Clear profile image
+      setProfileImage(null);
+      
+      // Update user object
+      setUser(prev => ({
+        ...prev,
+        profileImage: null
+      }));
+    } catch (error) {
+      console.error('Error removing profile image:', error);
+      alert('Failed to remove profile image. Please try again.');
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -147,6 +220,68 @@ export default function UserProfile() {
           <h1 className="text-3xl font-bold">Your Profile</h1>
           <Button onClick={handleEditProfile}>Edit Profile</Button>
         </div>
+        
+        {/* New Profile Image Card */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Profile Picture</CardTitle>
+            <CardDescription>Your profile image</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-6">
+              <div className="relative">
+                <Avatar className="h-24 w-24 cursor-pointer" onClick={handleProfileImageClick}>
+                  {profileImage ? (
+                    <AvatarImage src={profileImage} alt={user?.name} />
+                  ) : (
+                    <AvatarFallback className="text-4xl bg-primary/10">
+                      {user?.name?.charAt(0) || '?'}
+                    </AvatarFallback>
+                  )}
+                </Avatar>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  accept="image/jpeg,image/png,image/gif"
+                  onChange={handleProfileImageChange}
+                />
+                {isUploadingImage && (
+                  <div className="absolute inset-0 bg-black/30 rounded-full flex items-center justify-center">
+                    <Loader2 className="h-8 w-8 animate-spin text-white" />
+                  </div>
+                )}
+              </div>
+              <div>
+                <div className="flex gap-2 mb-2">
+                  <Button 
+                    size="sm" 
+                    onClick={handleProfileImageClick}
+                    disabled={isUploadingImage}
+                  >
+                    <Camera className="mr-2 h-4 w-4" />
+                    {profileImage ? 'Change Photo' : 'Upload Photo'}
+                  </Button>
+                  {profileImage && (
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={removeProfileImage}
+                      disabled={isUploadingImage}
+                    >
+                      <X className="mr-2 h-4 w-4" />
+                      Remove
+                    </Button>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Upload a clear photo of yourself. <br />
+                  Recommended size: 500x500 pixels.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
         
         <div className="space-y-6">
           <Card>
@@ -179,12 +314,17 @@ export default function UserProfile() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Account Type</p>
-                  <p className="text-lg capitalize">{user?.role || 'User'}</p>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={user?.role === 'veterinarian' ? 'default' : 'outline'}>
+                      {user?.role?.charAt(0)?.toUpperCase() + user?.role?.slice(1) || 'User'}
+                    </Badge>
+                  </div>
                 </div>
               </div>
             </CardContent>
           </Card>
           
+          {/* Rest of your cards remain the same */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
