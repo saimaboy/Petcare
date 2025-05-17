@@ -9,8 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { 
-  Pencil, Trash2, Plus, Search, Package, PawPrint, 
-  Pill, FilterX, ShoppingBag, LogOut, Loader2, AlertCircle 
+  Pencil, Trash2, Plus, Search, Package, FilterX, LogOut, Loader2, AlertCircle 
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -28,8 +27,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
-  DialogClose,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -38,14 +35,14 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
 export default function PharmacyDashboard() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState("products");
   const [pharmData, setPharmData] = useState(null);
   const [products, setProducts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState("all");
-  
+
   const [newProduct, setNewProduct] = useState({
     name: "",
     description: "",
@@ -54,7 +51,7 @@ export default function PharmacyDashboard() {
     stock: "",
     image: "",
   });
-  
+
   const [editingProduct, setEditingProduct] = useState(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -62,69 +59,69 @@ export default function PharmacyDashboard() {
   const [productToDelete, setProductToDelete] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Fetch pharmacy data and products on component mount
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        
-        if (!token) {
-          router.push('/login?redirect=/pharmacy-dashboard');
-          return;
-        }
-        
-        // Fetch pharmacy profile data
-        const profileResponse = await fetch(`${API_URL}/auth/me`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (profileResponse.status === 401) {
-          localStorage.removeItem('token');
-          localStorage.removeItem('userId');
-          router.push('/login?redirect=/pharmacy-dashboard');
-          return;
-        }
-        
-        if (!profileResponse.ok) {
-          throw new Error(`Failed to fetch profile: ${profileResponse.statusText}`);
-        }
-        
-        const profileData = await profileResponse.json();
-        
-        if (profileData.data.role !== 'pharmacist') {
-          router.push('/dashboard');
-          return;
-        }
-        
-        setPharmData(profileData.data);
-        
-        // Fetch pharmacy products
-        const productsResponse = await fetch(`${API_URL}/products/pharmacy`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (!productsResponse.ok) {
-          throw new Error(`Failed to fetch products: ${productsResponse.statusText}`);
-        }
-        
-        const productsData = await productsResponse.json();
-        setProducts(productsData.data || []);
-        
-      } catch (error) {
-        console.error("Error fetching data:", error);
-        setError(error.message || "Failed to load dashboard data. Please try again later.");
-      } finally {
-        setIsLoading(false);
+  // Fetch pharmacy data and products
+  const fetchProductsAndProfile = async () => {
+    try {
+      setIsLoading(true);
+      const token = localStorage.getItem('token');
+      if (!token) {
+        router.push('/login?redirect=/pharmacy-dashboard');
+        return;
       }
-    };
-    
-    fetchData();
+
+      // Fetch pharmacy profile data
+      const profileResponse = await fetch(`${API_URL}/auth/me`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (profileResponse.status === 401) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('userId');
+        router.push('/login?redirect=/pharmacy-dashboard');
+        return;
+      }
+
+      if (!profileResponse.ok) {
+        throw new Error(`Failed to fetch profile: ${profileResponse.statusText}`);
+      }
+
+      const profileData = await profileResponse.json();
+
+      if (profileData.data.role !== 'pharmacist') {
+        router.push('/dashboard');
+        return;
+      }
+
+      setPharmData(profileData.data);
+
+      // Fetch pharmacy products
+      const productsResponse = await fetch(`${API_URL}/products/pharmacy`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!productsResponse.ok) {
+        throw new Error(`Failed to fetch products: ${productsResponse.statusText}`);
+      }
+
+      const productsData = await productsResponse.json();
+      setProducts(productsData.data || []);
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      setError(error.message || "Failed to load dashboard data. Please try again later.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProductsAndProfile();
+    // eslint-disable-next-line
   }, [router]);
 
   // Handle logout
@@ -133,25 +130,25 @@ export default function PharmacyDashboard() {
     localStorage.removeItem('userId');
     router.push('/login');
   };
-  
+
   // Filter products based on search term and category
   const filteredProducts = products.filter((product) => {
-    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          product.description.toLowerCase().includes(searchTerm.toLowerCase());
-    
+    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.description.toLowerCase().includes(searchTerm.toLowerCase());
+
     if (filterCategory === "all") {
       return matchesSearch;
     } else {
       return matchesSearch && product.category === filterCategory;
     }
   });
-  
+
   // Reset search and filters
   const resetFilters = () => {
     setSearchTerm("");
     setFilterCategory("all");
   };
-  
+
   // Handle input change for new product form
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -160,7 +157,7 @@ export default function PharmacyDashboard() {
       [name]: value,
     });
   };
-  
+
   // Handle select change for category
   const handleCategoryChange = (category) => {
     setNewProduct({
@@ -168,7 +165,7 @@ export default function PharmacyDashboard() {
       category
     });
   };
-  
+
   // Handle input change for editing product
   const handleEditChange = (e) => {
     const { name, value } = e.target;
@@ -177,7 +174,7 @@ export default function PharmacyDashboard() {
       [name]: value,
     });
   };
-  
+
   // Handle edit category change
   const handleEditCategoryChange = (category) => {
     setEditingProduct({
@@ -185,15 +182,15 @@ export default function PharmacyDashboard() {
       category
     });
   };
-  
+
   // Add a new product
   const handleAddProduct = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
+
     try {
       const token = localStorage.getItem('token');
-      
+
       const response = await fetch(`${API_URL}/products`, {
         method: 'POST',
         headers: {
@@ -206,16 +203,14 @@ export default function PharmacyDashboard() {
           stock: parseInt(newProduct.stock)
         })
       });
-      
+
       if (!response.ok) {
         throw new Error(`Failed to add product: ${response.statusText}`);
       }
-      
-      const result = await response.json();
-      
-      // Update products list with new product
-      setProducts([...products, result.data]);
-      
+
+      // Instead of just updating local state, re-fetch products
+      await fetchProductsAndProfile();
+
       // Reset form and close dialog
       setNewProduct({
         name: "",
@@ -226,7 +221,7 @@ export default function PharmacyDashboard() {
         image: "",
       });
       setIsAddDialogOpen(false);
-      
+
     } catch (error) {
       console.error("Error adding product:", error);
       setError(`Failed to add product: ${error.message}`);
@@ -234,15 +229,15 @@ export default function PharmacyDashboard() {
       setIsSubmitting(false);
     }
   };
-  
+
   // Edit an existing product
   const handleEditProduct = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
+
     try {
       const token = localStorage.getItem('token');
-      
+
       const response = await fetch(`${API_URL}/products/${editingProduct._id}`, {
         method: 'PUT',
         headers: {
@@ -255,20 +250,18 @@ export default function PharmacyDashboard() {
           stock: parseInt(editingProduct.stock)
         })
       });
-      
+
       if (!response.ok) {
         throw new Error(`Failed to update product: ${response.statusText}`);
       }
-      
-      const result = await response.json();
-      
-      // Update products list with edited product
-      setProducts(products.map(p => p._id === editingProduct._id ? result.data : p));
-      
+
+      // Re-fetch products after editing
+      await fetchProductsAndProfile();
+
       // Reset form and close dialog
       setEditingProduct(null);
       setIsEditDialogOpen(false);
-      
+
     } catch (error) {
       console.error("Error updating product:", error);
       setError(`Failed to update product: ${error.message}`);
@@ -276,14 +269,14 @@ export default function PharmacyDashboard() {
       setIsSubmitting(false);
     }
   };
-  
+
   // Delete a product
   const handleDeleteProduct = async () => {
     setIsSubmitting(true);
-    
+
     try {
       const token = localStorage.getItem('token');
-      
+
       const response = await fetch(`${API_URL}/products/${productToDelete._id}`, {
         method: 'DELETE',
         headers: {
@@ -291,18 +284,18 @@ export default function PharmacyDashboard() {
           'Content-Type': 'application/json'
         }
       });
-      
+
       if (!response.ok) {
         throw new Error(`Failed to delete product: ${response.statusText}`);
       }
-      
-      // Remove product from list
-      setProducts(products.filter(p => p._id !== productToDelete._id));
-      
+
+      // Re-fetch products after deleting
+      await fetchProductsAndProfile();
+
       // Reset and close dialog
       setProductToDelete(null);
       setIsDeleteDialogOpen(false);
-      
+
     } catch (error) {
       console.error("Error deleting product:", error);
       setError(`Failed to delete product: ${error.message}`);
@@ -310,7 +303,7 @@ export default function PharmacyDashboard() {
       setIsSubmitting(false);
     }
   };
-  
+
   // Format currency
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
@@ -318,7 +311,7 @@ export default function PharmacyDashboard() {
       currency: 'USD'
     }).format(amount);
   };
-  
+
   // Loading state
   if (isLoading) {
     return (
@@ -330,7 +323,7 @@ export default function PharmacyDashboard() {
       </div>
     );
   }
-  
+
   // Error state
   if (error) {
     return (

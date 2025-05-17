@@ -1,7 +1,15 @@
-
 const mongoose = require('mongoose');
 
 const ProductSchema = new mongoose.Schema({
+  pharmacy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  pharmacyName: {
+    type: String,
+    required: true
+  },
   name: {
     type: String,
     required: [true, 'Please add a product name'],
@@ -31,15 +39,6 @@ const ProductSchema = new mongoose.Schema({
   image: {
     type: String,
     default: ''
-  },
-  pharmacyId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  pharmacyName: {
-    type: String,
-    required: true
   },
   createdAt: {
     type: Date,
