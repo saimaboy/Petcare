@@ -7,13 +7,14 @@ const path = require('path');
 const config = require('./config/config');
 const errorHandler = require('./middleware/error');
 
-// Import routes - make sure these are properly exported as Express routers
+// Import routes
 const userRoutes = require('./routes/userRoutes');
 const petRoutes = require('./routes/petRoutes');
-// Only uncomment routes that actually exist
 const prescriptionRoutes = require('./routes/prescriptionRoutes');
 const vetRoutes = require('./routes/vetRoutes');
 const authRoutes = require('./routes/auth');
+// Add this line
+const veterinarianRoutes = require('./routes/vetRoutes');
 
 const app = express();
 
@@ -39,12 +40,14 @@ if (config.NODE_ENV === 'development') {
 // Static folder
 app.use(express.static(path.join(__dirname, 'public')));
 
-// API routes - only use routes that actually exist
+// Use routes
 app.use('/api/users', userRoutes);
 app.use('/api/pets', petRoutes);
 app.use('/api/prescriptions', prescriptionRoutes);  
 app.use('/api/vets', vetRoutes);
 app.use('/api/auth', authRoutes);
+// Add this line
+app.use('/api/veterinarians', veterinarianRoutes);
 
 // 404 handler
 app.use((req, res) => {
@@ -56,6 +59,6 @@ app.use((req, res) => {
 });
 
 // Error handling middleware
-app.use(errorHandler);  // Make sure this is a function not an object
+app.use(errorHandler);
 
 module.exports = app;

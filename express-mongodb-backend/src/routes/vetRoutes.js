@@ -1,18 +1,12 @@
 const express = require('express');
-const router = express.Router();
-const { protect } = require('../middleware/auth');
-const asyncHandler = require('../middleware/async');
-const ErrorResponse = require('../utils/errorResponse');
+const { 
+  getVeterinarians,
+  getVeterinarian
+} = require('../controllers/veterinarianController');
 
-// Temporary implementation until you create a proper controller and model
-router.get('/', protect, asyncHandler(async (req, res) => {
-  res.status(200).json({
-    success: true,
-    data: {
-      message: "Vet routes are set up properly",
-      vets: []
-    }
-  });
-}));
+const router = express.Router();
+
+router.route('/').get(getVeterinarians);
+router.route('/:id').get(getVeterinarian);
 
 module.exports = router;

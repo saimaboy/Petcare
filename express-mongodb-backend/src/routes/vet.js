@@ -3,7 +3,7 @@ const {
   getVetDashboard,
   getVetProfile,
   updateVetProfile
-} = require('../controllers/vetController');
+} = require('../controllers/veterinarianController');
 
 const router = express.Router();
 
