@@ -13,7 +13,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 export default function UserRegister() {
   const router = useRouter()
   const [formData, setFormData] = useState({
-    name: "", // Changed from fullName to name to match backend
+    name: "",
     email: "",
     phoneNumber: "",
     password: "",

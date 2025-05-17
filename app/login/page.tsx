@@ -67,7 +67,7 @@ export default function Login() {
 
     try {
       // Make API call to authenticate the user
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch('http://localhost:5000/api/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -94,10 +94,10 @@ export default function Login() {
           router.push('/pharmacy-dashboard')
           break
         case 'user':
-          router.push('/dashboard')
+          router.push('/')
           break
         default:
-          router.push('/dashboard')
+          router.push('/')
       }
     } catch (error) {
       console.error("Login error:", error)
