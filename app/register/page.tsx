@@ -2,11 +2,11 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useRouter } from "next/navigation"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
@@ -18,6 +18,12 @@ export default function UserRegister() {
     phoneNumber: "",
     password: "",
     confirmPassword: "",
+    // Address fields
+    street: "",
+    city: "",
+    state: "",
+    zipCode: "",
+    country: "United States",
   })
   const [errors, setErrors] = useState({})
   const [isLoading, setIsLoading] = useState(false)
@@ -34,7 +40,7 @@ export default function UserRegister() {
     const newErrors = {}
 
     if (!formData.name.trim()) {
-      newErrors.name = "Full Name is required"
+      newErrors.name = "Name is required"
     }
 
     if (!formData.email.trim()) {
@@ -63,46 +69,51 @@ export default function UserRegister() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-
+    
     if (!validateForm()) {
       return
     }
-
+    
     setIsLoading(true)
-
+    
     try {
-      // Use the full URL to your Express backend
       const response = await fetch(`${API_URL}/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name: formData.name, // Send name not fullName
+          name: formData.name,
           email: formData.email,
-          phoneNumber: formData.phoneNumber,
           password: formData.password,
-          role: 'user' // Set role as user for client registration
+          phoneNumber: formData.phoneNumber,
+          role: 'user',
+          address: {
+            street: formData.street,
+            city: formData.city,
+            state: formData.state,
+            zipCode: formData.zipCode,
+            country: formData.country
+          }
         }),
-        credentials: 'include', // Important for cookies if you're using them
       })
-
+      
       const data = await response.json()
-
+      
       if (!response.ok) {
         throw new Error(data.message || 'Registration failed')
       }
-
-      // Store token in localStorage if your app uses it
+      
+      // Store token
       if (data.token) {
         localStorage.setItem('token', data.token)
+        localStorage.setItem('userId', data.user.id)
       }
-
-      // On successful registration, redirect to login page or dashboard
-      router.push("/login?registered=true")
+      
+      router.push("/dashboard")
     } catch (error) {
       console.error("Registration error:", error)
-      setErrors({ form: error.message || "Registration failed. Please try again." })
+      setErrors({ form: error.message })
     } finally {
       setIsLoading(false)
     }
@@ -113,45 +124,38 @@ export default function UserRegister() {
       <div className="mx-auto max-w-md">
         <Card className="shadow-lg">
           <CardHeader className="space-y-1">
-            <CardTitle className="text-3xl font-semibold text-center text-primary">Create an Account</CardTitle>
+            <CardTitle className="text-2xl font-semibold text-center text-primary">Create an account</CardTitle>
             <CardDescription className="text-center text-muted-foreground">
-              Enter your information to register as a pet owner
+              Enter your details to create a pet owner account
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6 mt-4">
-              {/* Full Name */}
+            <form onSubmit={handleSubmit} className="space-y-4 mt-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Full Name</Label>
                 <Input
                   id="name"
                   name="name"
-                  placeholder="Your Full Name"
+                  placeholder="John Doe"
                   value={formData.name}
                   onChange={handleChange}
-                  className="border-2 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-primary"
                   required
                 />
                 {errors.name && <p className="text-sm text-red-500">{errors.name}</p>}
               </div>
-
-              {/* Email */}
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
                   name="email"
                   type="email"
-                  placeholder="you@example.com"
+                  placeholder="john@example.com"
                   value={formData.email}
                   onChange={handleChange}
-                  className="border-2 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-primary"
                   required
                 />
                 {errors.email && <p className="text-sm text-red-500">{errors.email}</p>}
               </div>
-
-              {/* Phone Number */}
               <div className="space-y-2">
                 <Label htmlFor="phoneNumber">Phone Number</Label>
                 <Input
@@ -160,13 +164,58 @@ export default function UserRegister() {
                   placeholder="(123) 456-7890"
                   value={formData.phoneNumber}
                   onChange={handleChange}
-                  className="border-2 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-primary"
                   required
                 />
                 {errors.phoneNumber && <p className="text-sm text-red-500">{errors.phoneNumber}</p>}
               </div>
-
-              {/* Password */}
+              
+              {/* Address Fields */}
+              <div className="space-y-4">
+                <h3 className="font-medium">Your Address</h3>
+                <div className="space-y-2">
+                  <Label htmlFor="street">Street Address</Label>
+                  <Input
+                    id="street"
+                    name="street"
+                    placeholder="123 Main St"
+                    value={formData.street}
+                    onChange={handleChange}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="city">City</Label>
+                  <Input
+                    id="city"
+                    name="city"
+                    placeholder="New York"
+                    value={formData.city}
+                    onChange={handleChange}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="state">State</Label>
+                    <Input
+                      id="state"
+                      name="state"
+                      placeholder="NY"
+                      value={formData.state}
+                      onChange={handleChange}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="zipCode">ZIP Code</Label>
+                    <Input
+                      id="zipCode"
+                      name="zipCode"
+                      placeholder="10001"
+                      value={formData.zipCode}
+                      onChange={handleChange}
+                    />
+                  </div>
+                </div>
+              </div>
+              
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
                 <Input
@@ -175,13 +224,10 @@ export default function UserRegister() {
                   type="password"
                   value={formData.password}
                   onChange={handleChange}
-                  className="border-2 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-primary"
                   required
                 />
                 {errors.password && <p className="text-sm text-red-500">{errors.password}</p>}
               </div>
-
-              {/* Confirm Password */}
               <div className="space-y-2">
                 <Label htmlFor="confirmPassword">Confirm Password</Label>
                 <Input
@@ -190,18 +236,13 @@ export default function UserRegister() {
                   type="password"
                   value={formData.confirmPassword}
                   onChange={handleChange}
-                  className="border-2 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-primary"
                   required
                 />
                 {errors.confirmPassword && <p className="text-sm text-red-500">{errors.confirmPassword}</p>}
               </div>
-
-              {/* Form Error */}
               {errors.form && <p className="text-sm text-red-500">{errors.form}</p>}
-
-              {/* Submit Button */}
               <Button type="submit" className="w-full mt-4" disabled={isLoading}>
-                {isLoading ? "Creating account..." : "Create account"}
+                {isLoading ? "Creating account..." : "Create Account"}
               </Button>
             </form>
           </CardContent>

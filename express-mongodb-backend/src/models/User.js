@@ -45,6 +45,30 @@ const UserSchema = new mongoose.Schema({
     enum: ['user', 'veterinarian', 'pharmacist', 'admin', 'service_provider'],
     default: 'user'
   },
+  // Add location fields for all users
+  address: {
+    street: {
+      type: String,
+      trim: true
+    },
+    city: {
+      type: String,
+      trim: true
+    },
+    state: {
+      type: String,
+      trim: true
+    },
+    zipCode: {
+      type: String,
+      trim: true
+    },
+    country: {
+      type: String,
+      trim: true,
+      default: 'United States'
+    }
+  },
   createdAt: {
     type: Date,
     default: Date.now

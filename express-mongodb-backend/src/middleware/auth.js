@@ -1,55 +1,76 @@
 const jwt = require('jsonwebtoken');
 const asyncHandler = require('./async');
-const ErrorResponse = require('../utils/errorResponse');
 const User = require('../models/User');
-const config = require('../config/config');
 
-// Protect routes
+// Protect routes - verify token
 exports.protect = asyncHandler(async (req, res, next) => {
   let token;
+  
+  // Add debug logs to trace authentication flow
+  console.log('Authentication headers:', req.headers.authorization);
 
-  // Get token from authorization header
-  if (
-    req.headers.authorization &&
-    req.headers.authorization.startsWith('Bearer')
-  ) {
-    // Set token from Bearer token in header
+  // Check for token in Authorization header
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    // Get token from header (remove "Bearer " prefix)
     token = req.headers.authorization.split(' ')[1];
-  }
-  // Set token from cookie
-  else if (req.cookies && req.cookies.token) {
-    token = req.cookies.token;
+    console.log('Token extracted from Authorization header');
   }
 
   // Make sure token exists
   if (!token) {
-    return next(new ErrorResponse('Not authorized to access this route', 401));
+    console.log('No token found in request');
+    return res.status(401).json({
+      success: false,
+      error: 'Not authorized to access this route'
+    });
   }
 
   try {
     // Verify token
-    const decoded = jwt.verify(token, config.JWT_SECRET); // Use config.JWT_SECRET instead of process.env
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log('Token decoded successfully:', decoded);
 
-    // Add user to request object
-    req.user = await User.findById(decoded.id);
+    // Find user by ID from token
+    const user = await User.findById(decoded.id);
 
+    if (!user) {
+      console.log('User not found for token');
+      return res.status(401).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+
+    // Set req.user to the authenticated user
+    req.user = user;
+    console.log('User attached to request:', user._id);
     next();
   } catch (err) {
-    return next(new ErrorResponse('Not authorized to access this route', 401));
+    console.error('Token verification failed:', err.message);
+    return res.status(401).json({
+      success: false,
+      error: 'Not authorized to access this route'
+    });
   }
 });
 
 // Grant access to specific roles
 exports.authorize = (...roles) => {
   return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
-      return next(
-        new ErrorResponse(
-          `User role ${req.user.role} is not authorized to access this route`,
-          403
-        )
-      );
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: 'User not authenticated'
+      });
     }
+
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        error: `User role '${req.user.role}' is not authorized to access this route`
+      });
+    }
+    
     next();
   };
 };

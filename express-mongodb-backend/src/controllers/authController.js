@@ -1,143 +1,257 @@
-const crypto = require('crypto');
 const User = require('../models/User');
 const asyncHandler = require('../middleware/async');
-const ErrorResponse = require('../utils/errorResponse');
-const sendEmail = require('../utils/sendEmail');
+const jwt = require('jsonwebtoken');
 
-// @desc    Register user
-// @route   POST /api/auth/register
-// @access  Public
+/**
+ * @desc    Register a user (both regular users and service providers)
+ * @route   POST /api/auth/register
+ * @access  Public
+ */
 exports.register = asyncHandler(async (req, res, next) => {
-  const { name, email, password, phoneNumber, role, licenseNumber, serviceType, businessName } = req.body;
+  const { 
+    name, 
+    email, 
+    password, 
+    phoneNumber, 
+    role,
+    address,
+    licenseNumber,
+    serviceType,
+    businessName
+  } = req.body;
 
-  // Check if user already exists
+  // Check if user with this email already exists
   const existingUser = await User.findOne({ email });
   if (existingUser) {
-    return next(new ErrorResponse('Email already registered', 400));
+    return res.status(400).json({
+      success: false,
+      error: 'Email is already registered'
+    });
   }
 
-  // Create user
+  // Determine role and validate required fields
+  const userRole = role || 'user';
+  
+  // Validate service provider specific fields
+  if ((userRole === 'veterinarian' || userRole === 'pharmacist') && 
+      (!licenseNumber || !businessName)) {
+    return res.status(400).json({
+      success: false,
+      error: 'License number and business name are required for service providers'
+    });
+  }
+
+  // Create user with address information
   const user = await User.create({
     name,
     email,
     password,
     phoneNumber,
-    role,
+    role: userRole,
+    address: {
+      street: address?.street || '',
+      city: address?.city || '',
+      state: address?.state || '',
+      zipCode: address?.zipCode || '',
+      country: address?.country || 'United States'
+    },
     licenseNumber,
     serviceType,
-    businessName: businessName || name // Use businessName if provided, otherwise use name
+    businessName
   });
 
+  // Log successful registration
+  console.log(`New ${userRole} registered: ${name} (${email})`);
+
+  // Send token response
   sendTokenResponse(user, 201, res);
 });
 
-// @desc    Login user
-// @route   POST /api/auth/login
-// @access  Public
+/**
+ * @desc    Login user
+ * @route   POST /api/auth/login
+ * @access  Public
+ */
 exports.login = asyncHandler(async (req, res, next) => {
   const { email, password } = req.body;
 
   // Validate email & password
   if (!email || !password) {
-    return next(new ErrorResponse('Please provide an email and password', 400));
+    return res.status(400).json({
+      success: false,
+      error: 'Please provide an email and password'
+    });
   }
 
   // Check for user
   const user = await User.findOne({ email }).select('+password');
 
   if (!user) {
-    return next(new ErrorResponse('Invalid credentials', 401));
+    return res.status(401).json({
+      success: false,
+      error: 'Invalid credentials'
+    });
   }
 
   // Check if password matches
   const isMatch = await user.matchPassword(password);
 
   if (!isMatch) {
-    return next(new ErrorResponse('Invalid credentials', 401));
+    return res.status(401).json({
+      success: false,
+      error: 'Invalid credentials'
+    });
   }
 
+  // Log successful login
+  console.log(`User logged in: ${user.name} (${user._id}), role: ${user.role}`);
+
+  // Send token response
   sendTokenResponse(user, 200, res);
 });
 
-// @desc    Log user out / clear cookie
-// @route   GET /api/auth/logout
-// @access  Private
-exports.logout = asyncHandler(async (req, res, next) => {
-  res.cookie('token', 'none', {
-    expires: new Date(Date.now() + 10 * 1000),
-    httpOnly: true
-  });
+/**
+ * @desc    Get current logged in user
+ * @route   GET /api/auth/me
+ * @access  Private
+ */
+exports.getMe = async (req, res) => {
+  try {
+    // Get token from header
+    const token = req.headers.authorization?.split(' ')[1];
+    
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        error: 'Not authorized to access this route'
+      });
+    }
+    
+    // Verify token
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET || 'defaultsecret');
+      console.log('Token verified successfully, user ID:', decoded.id);
+    } catch (err) {
+      console.error('Token verification failed:', err.message);
+      return res.status(401).json({
+        success: false,
+        error: 'Token is invalid or expired'
+      });
+    }
+    
+    // Find user by ID
+    const user = await User.findById(decoded.id);
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        phoneNumber: user.phoneNumber,
+        address: user.address,
+        businessName: user.businessName,
+        licenseNumber: user.licenseNumber,
+        serviceType: user.serviceType
+      }
+    });
+  } catch (error) {
+    console.error('Get me error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server error'
+    });
+  }
+};
 
-  res.status(200).json({
-    success: true,
-    data: {}
-  });
-});
+/**
+ * @desc    Update user profile
+ * @route   PUT /api/auth/updateprofile
+ * @access  Private
+ */
+exports.updateProfile = asyncHandler(async (req, res, next) => {
+  // Find the user
+  let user = await User.findById(req.userId);
 
-// @desc    Get current logged in user
-// @route   GET /api/auth/me
-// @access  Private
-exports.getMe = asyncHandler(async (req, res, next) => {
-  const user = await User.findById(req.user.id);
-
-  res.status(200).json({
-    success: true,
-    data: user
-  });
-});
-
-// @desc    Update user details
-// @route   PUT /api/auth/updatedetails
-// @access  Private
-exports.updateDetails = asyncHandler(async (req, res, next) => {
-  const fieldsToUpdate = {
-    name: req.body.name,
-    email: req.body.email,
-    phoneNumber: req.body.phoneNumber
-  };
-
-  // If it's a service provider, allow updating those fields too
-  if (req.user.role === 'veterinarian' || req.user.role === 'pharmacist' || req.user.role === 'service_provider') {
-    if (req.body.businessName) fieldsToUpdate.businessName = req.body.businessName;
-    if (req.body.licenseNumber) fieldsToUpdate.licenseNumber = req.body.licenseNumber;
+  if (!user) {
+    return res.status(404).json({
+      success: false,
+      error: 'User not found'
+    });
   }
 
-  const user = await User.findByIdAndUpdate(req.user.id, fieldsToUpdate, {
-    new: true,
-    runValidators: true
-  });
+  // Fields that can be updated
+  const { 
+    name, 
+    phoneNumber, 
+    businessName, 
+    licenseNumber,
+    address 
+  } = req.body;
 
-  res.status(200).json({
-    success: true,
-    data: user
-  });
-});
+  // Update basic user info
+  if (name) user.name = name;
+  if (phoneNumber) user.phoneNumber = phoneNumber;
 
-// @desc    Update password
-// @route   PUT /api/auth/updatepassword
-// @access  Private
-exports.updatePassword = asyncHandler(async (req, res, next) => {
-  const user = await User.findById(req.user.id).select('+password');
-
-  // Check current password
-  if (!(await user.matchPassword(req.body.currentPassword))) {
-    return next(new ErrorResponse('Password is incorrect', 401));
+  // Update service provider specific fields
+  if (user.role === 'veterinarian' || user.role === 'pharmacist') {
+    if (businessName) user.businessName = businessName;
+    if (licenseNumber) user.licenseNumber = licenseNumber;
   }
 
-  user.password = req.body.newPassword;
+  // Update address
+  if (address) {
+    user.address = {
+      street: address.street || user.address?.street || '',
+      city: address.city || user.address?.city || '',
+      state: address.state || user.address?.state || '',
+      zipCode: address.zipCode || user.address?.zipCode || '',
+      country: address.country || user.address?.country || 'United States'
+    };
+  }
+
+  // Save updated user
   await user.save();
 
-  sendTokenResponse(user, 200, res);
+  // Return updated user data
+  res.status(200).json({
+    success: true,
+    data: {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      phoneNumber: user.phoneNumber,
+      role: user.role,
+      address: user.address,
+      businessName: user.businessName,
+      licenseNumber: user.licenseNumber,
+      serviceType: user.serviceType
+    }
+  });
 });
 
-// @desc    Forgot password
-// @route   POST /api/auth/forgotpassword
-// @access  Public
+/**
+ * @desc    Forgot password
+ * @route   POST /api/auth/forgotpassword
+ * @access  Public
+ */
 exports.forgotPassword = asyncHandler(async (req, res, next) => {
   const user = await User.findOne({ email: req.body.email });
 
   if (!user) {
-    return next(new ErrorResponse('There is no user with that email', 404));
+    return res.status(404).json({
+      success: false,
+      error: 'No user with that email'
+    });
   }
 
   // Get reset token
@@ -145,35 +259,20 @@ exports.forgotPassword = asyncHandler(async (req, res, next) => {
 
   await user.save({ validateBeforeSave: false });
 
-  // Create reset url
-  const resetUrl = `${req.protocol}://${req.get(
-    'host'
-  )}/api/auth/resetpassword/${resetToken}`;
-
-  const message = `You are receiving this email because you (or someone else) has requested the reset of a password. Please make a PUT request to: \n\n ${resetUrl}`;
-
-  try {
-    await sendEmail({
-      email: user.email,
-      subject: 'Password reset token',
-      message
-    });
-
-    res.status(200).json({ success: true, data: 'Email sent' });
-  } catch (err) {
-    console.log(err);
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpire = undefined;
-
-    await user.save({ validateBeforeSave: false });
-
-    return next(new ErrorResponse('Email could not be sent', 500));
-  }
+  // For a real app, send email with reset link
+  // For now, just return the token
+  res.status(200).json({
+    success: true,
+    message: 'Password reset token generated',
+    resetToken
+  });
 });
 
-// @desc    Reset password
-// @route   PUT /api/auth/resetpassword/:resettoken
-// @access  Public
+/**
+ * @desc    Reset password
+ * @route   PUT /api/auth/resetpassword/:resettoken
+ * @access  Public
+ */
 exports.resetPassword = asyncHandler(async (req, res, next) => {
   // Get hashed token
   const resetPasswordToken = crypto
@@ -187,46 +286,124 @@ exports.resetPassword = asyncHandler(async (req, res, next) => {
   });
 
   if (!user) {
-    return next(new ErrorResponse('Invalid token', 400));
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid or expired token'
+    });
   }
 
   // Set new password
   user.password = req.body.password;
   user.resetPasswordToken = undefined;
   user.resetPasswordExpire = undefined;
+  
   await user.save();
 
+  // Log password reset
+  console.log(`Password reset for ${user.email}`);
+
+  // Send token response
   sendTokenResponse(user, 200, res);
 });
 
-// Helper function to get token from model, create cookie and send response
-const sendTokenResponse = (user, statusCode, res) => {
-  // Create token
-  const token = user.getSignedJwtToken();
+/**
+ * @desc    Update password
+ * @route   PUT /api/auth/updatepassword
+ * @access  Private
+ */
+exports.updatePassword = asyncHandler(async (req, res, next) => {
+  const user = await User.findById(req.userId).select('+password');
 
-  const options = {
-    expires: new Date(
-      // Use a default value (30 days) if JWT_COOKIE_EXPIRE is not set
-      Date.now() + (parseInt(process.env.JWT_COOKIE_EXPIRE) || 30) * 24 * 60 * 60 * 1000
-    ),
-    httpOnly: true
-  };
-
-  if (process.env.NODE_ENV === 'production') {
-    options.secure = true;
+  // Check current password
+  if (!(await user.matchPassword(req.body.currentPassword))) {
+    return res.status(401).json({
+      success: false,
+      error: 'Current password is incorrect'
+    });
   }
 
-  res
-    .status(statusCode)
-    .cookie('token', token, options)
-    .json({
-      success: true,
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role
-      }
+  // Set new password
+  user.password = req.body.newPassword;
+  await user.save();
+
+  // Log password update
+  console.log(`Password updated for ${user.email}`);
+
+  // Send token response
+  sendTokenResponse(user, 200, res);
+});
+
+/**
+ * @desc    Verify token validity
+ * @route   GET /api/auth/verify
+ * @access  Public
+ */
+exports.verifyToken = asyncHandler(async (req, res, next) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  
+  if (!token) {
+    return res.status(200).json({
+      success: false,
+      valid: false,
+      message: 'No token provided'
     });
+  }
+  
+  try {
+    // Verify token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'defaultsecret');
+    
+    // Check if user exists
+    const user = await User.findById(decoded.id);
+    
+    if (!user) {
+      return res.status(200).json({
+        success: false,
+        valid: false,
+        message: 'User not found'
+      });
+    }
+    
+    return res.status(200).json({
+      success: true,
+      valid: true,
+      userId: decoded.id,
+      role: user.role
+    });
+  } catch (error) {
+    return res.status(200).json({
+      success: false,
+      valid: false,
+      message: 'Invalid token'
+    });
+  }
+});
+
+// Helper function to send token response
+const sendTokenResponse = (user, statusCode, res) => {
+  // Create token with additional role info
+  const token = jwt.sign(
+    { 
+      id: user._id.toString(),
+      role: user.role 
+    }, 
+    process.env.JWT_SECRET || 'defaultsecret',
+    { expiresIn: process.env.JWT_EXPIRE || '30d' }
+  );
+
+  // Send response
+  res.status(statusCode).json({
+    success: true,
+    token,
+    user: {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      phoneNumber: user.phoneNumber,
+      address: user.address,
+      businessName: user.businessName,
+      serviceType: user.serviceType
+    }
+  });
 };

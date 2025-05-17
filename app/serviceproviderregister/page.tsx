@@ -6,16 +6,26 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { useRouter } from "next/navigation"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
 export default function ServiceProviderRegister() {
   const router = useRouter()
   const [formData, setFormData] = useState({
-    businessName: "",
+    name: "",
     email: "",
     phoneNumber: "",
+    businessName: "",
     licenseNumber: "",
-    serviceType: "veterinarian", // Default value for the service type
+    serviceType: "veterinarian",
+    street: "",
+    city: "",
+    state: "",
+    zipCode: "",
+    country: "United States",
     password: "",
     confirmPassword: "",
   })
@@ -30,11 +40,18 @@ export default function ServiceProviderRegister() {
     }))
   }
 
+  const handleServiceTypeChange = (value) => {
+    setFormData((prev) => ({
+      ...prev,
+      serviceType: value,
+    }))
+  }
+
   const validateForm = () => {
     const newErrors = {}
 
-    if (!formData.businessName.trim()) {
-      newErrors.businessName = "Business Name is required"
+    if (!formData.name.trim()) {
+      newErrors.name = "Full Name is required"
     }
 
     if (!formData.email.trim()) {
@@ -47,8 +64,28 @@ export default function ServiceProviderRegister() {
       newErrors.phoneNumber = "Phone number is required"
     }
 
+    if (!formData.businessName.trim()) {
+      newErrors.businessName = "Business name is required"
+    }
+
     if (!formData.licenseNumber.trim()) {
       newErrors.licenseNumber = "License number is required"
+    }
+
+    if (!formData.street.trim()) {
+      newErrors.street = "Street address is required"
+    }
+
+    if (!formData.city.trim()) {
+      newErrors.city = "City is required"
+    }
+
+    if (!formData.state.trim()) {
+      newErrors.state = "State is required"
+    }
+
+    if (!formData.zipCode.trim()) {
+      newErrors.zipCode = "ZIP code is required"
     }
 
     if (!formData.password) {
@@ -75,24 +112,29 @@ export default function ServiceProviderRegister() {
     setIsLoading(true)
 
     try {
-      // Determine role based on serviceType
-      const role = formData.serviceType === 'veterinarian' ? 'veterinarian' : 
-                   formData.serviceType === 'pharmacy' ? 'pharmacist' : 'service_provider';
-                   
-      const response = await fetch('http://localhost:5000/api/auth/register', {
+      const response = await fetch(`${API_URL}/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name: formData.businessName,
+          name: formData.name,
           email: formData.email,
           phoneNumber: formData.phoneNumber,
+          businessName: formData.businessName,
           licenseNumber: formData.licenseNumber,
           serviceType: formData.serviceType,
+          role: formData.serviceType === 'pharmacy' ? 'pharmacist' : 'veterinarian',
+          address: {
+            street: formData.street,
+            city: formData.city,
+            state: formData.state,
+            zipCode: formData.zipCode,
+            country: formData.country
+          },
           password: formData.password,
-          role: role // Set role based on the service type
         }),
+        credentials: 'include',
       })
 
       const data = await response.json()
@@ -101,8 +143,19 @@ export default function ServiceProviderRegister() {
         throw new Error(data.message || 'Registration failed')
       }
 
-      // On successful registration, redirect to login page
-      router.push("/login?registered=true")
+      // Store token in localStorage
+      if (data.token) {
+        localStorage.setItem('token', data.token)
+      }
+
+      // Redirect based on service type
+      if (formData.serviceType === 'veterinarian') {
+        router.push("/vet-dashboard")
+      } else if (formData.serviceType === 'pharmacy') {
+        router.push("/pharmacy-dashboard")
+      } else {
+        router.push("/login?registered=true")
+      }
     } catch (error) {
       console.error("Registration error:", error)
       setErrors({ form: error.message || "Registration failed. Please try again." })
@@ -116,26 +169,42 @@ export default function ServiceProviderRegister() {
       <div className="mx-auto max-w-md">
         <Card className="shadow-lg">
           <CardHeader className="space-y-1">
-            <CardTitle className="text-3xl font-semibold text-center text-primary">Create a Service Provider Account</CardTitle>
+            <CardTitle className="text-2xl font-semibold text-center text-primary">Register as a Service Provider</CardTitle>
             <CardDescription className="text-center text-muted-foreground">
-              Enter your information to register as a service provider
+              Enter your information to register as a veterinarian or pharmacist
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6 mt-4">
-              {/* Business Name */}
+              {/* Service Type */}
               <div className="space-y-2">
-                <Label htmlFor="businessName">Business Name</Label>
+                <Label htmlFor="serviceType">Service Type</Label>
+                <Select
+                  value={formData.serviceType}
+                  onValueChange={handleServiceTypeChange}
+                >
+                  <SelectTrigger id="serviceType">
+                    <SelectValue placeholder="Select service type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="veterinarian">Veterinarian</SelectItem>
+                    <SelectItem value="pharmacy">Pharmacy</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {/* Full Name */}
+              <div className="space-y-2">
+                <Label htmlFor="name">Full Name</Label>
                 <Input
-                  id="businessName"
-                  name="businessName"
-                  placeholder="Your Business Name"
-                  value={formData.businessName}
+                  id="name"
+                  name="name"
+                  placeholder="Your Full Name"
+                  value={formData.name}
                   onChange={handleChange}
-                  className="border-2 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-primary"
                   required
                 />
-                {errors.businessName && <p className="text-sm text-red-500">{errors.businessName}</p>}
+                {errors.name && <p className="text-sm text-red-500">{errors.name}</p>}
               </div>
 
               {/* Email */}
@@ -145,10 +214,9 @@ export default function ServiceProviderRegister() {
                   id="email"
                   name="email"
                   type="email"
-                  placeholder="yourbusiness@example.com"
+                  placeholder="you@example.com"
                   value={formData.email}
                   onChange={handleChange}
-                  className="border-2 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-primary"
                   required
                 />
                 {errors.email && <p className="text-sm text-red-500">{errors.email}</p>}
@@ -163,43 +231,114 @@ export default function ServiceProviderRegister() {
                   placeholder="(123) 456-7890"
                   value={formData.phoneNumber}
                   onChange={handleChange}
-                  className="border-2 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-primary"
                   required
                 />
                 {errors.phoneNumber && <p className="text-sm text-red-500">{errors.phoneNumber}</p>}
               </div>
 
-              {/* License Number */}
-              <div className="space-y-2">
-                <Label htmlFor="licenseNumber">License Number</Label>
-                <Input
-                  id="licenseNumber"
-                  name="licenseNumber"
-                  placeholder="Your License Number"
-                  value={formData.licenseNumber}
-                  onChange={handleChange}
-                  className="border-2 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-primary"
-                  required
-                />
-                {errors.licenseNumber && <p className="text-sm text-red-500">{errors.licenseNumber}</p>}
+              {/* Business Info */}
+              <div className="space-y-4">
+                <h3 className="font-medium">Business Information</h3>
+                
+                {/* Business Name */}
+                <div className="space-y-2">
+                  <Label htmlFor="businessName">Business/Practice Name</Label>
+                  <Input
+                    id="businessName"
+                    name="businessName"
+                    placeholder="Animal Care Clinic"
+                    value={formData.businessName}
+                    onChange={handleChange}
+                    required
+                  />
+                  {errors.businessName && <p className="text-sm text-red-500">{errors.businessName}</p>}
+                </div>
+
+                {/* License Number */}
+                <div className="space-y-2">
+                  <Label htmlFor="licenseNumber">License Number</Label>
+                  <Input
+                    id="licenseNumber"
+                    name="licenseNumber"
+                    placeholder="License Number"
+                    value={formData.licenseNumber}
+                    onChange={handleChange}
+                    required
+                  />
+                  {errors.licenseNumber && <p className="text-sm text-red-500">{errors.licenseNumber}</p>}
+                </div>
               </div>
 
-              {/* Service Type */}
-              <div className="space-y-2">
-                <Label htmlFor="serviceType">Service Type</Label>
-                <select
-                  id="serviceType"
-                  name="serviceType"
-                  value={formData.serviceType}
-                  onChange={handleChange}
-                  className="border-2 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-primary"
-                  required
-                >
-                  <option value="veterinarian">Veterinarian</option>
-                  <option value="pharmacy">Pharmacy</option>
-                  <option value="other">Other Pet Service Provider</option>
-                </select>
-                {errors.serviceType && <p className="text-sm text-red-500">{errors.serviceType}</p>}
+              {/* Address Section */}
+              <div className="space-y-4">
+                <h3 className="font-medium">Business Address</h3>
+                
+                {/* Street */}
+                <div className="space-y-2">
+                  <Label htmlFor="street">Street Address</Label>
+                  <Input
+                    id="street"
+                    name="street"
+                    placeholder="123 Main St"
+                    value={formData.street}
+                    onChange={handleChange}
+                    required
+                  />
+                  {errors.street && <p className="text-sm text-red-500">{errors.street}</p>}
+                </div>
+
+                {/* City */}
+                <div className="space-y-2">
+                  <Label htmlFor="city">City</Label>
+                  <Input
+                    id="city"
+                    name="city"
+                    placeholder="New York"
+                    value={formData.city}
+                    onChange={handleChange}
+                    required
+                  />
+                  {errors.city && <p className="text-sm text-red-500">{errors.city}</p>}
+                </div>
+
+                {/* State and Zip in one row */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="state">State</Label>
+                    <Input
+                      id="state"
+                      name="state"
+                      placeholder="NY"
+                      value={formData.state}
+                      onChange={handleChange}
+                      required
+                    />
+                    {errors.state && <p className="text-sm text-red-500">{errors.state}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="zipCode">ZIP Code</Label>
+                    <Input
+                      id="zipCode"
+                      name="zipCode"
+                      placeholder="10001"
+                      value={formData.zipCode}
+                      onChange={handleChange}
+                      required
+                    />
+                    {errors.zipCode && <p className="text-sm text-red-500">{errors.zipCode}</p>}
+                  </div>
+                </div>
+
+                {/* Country */}
+                <div className="space-y-2">
+                  <Label htmlFor="country">Country</Label>
+                  <Input
+                    id="country"
+                    name="country"
+                    value={formData.country}
+                    onChange={handleChange}
+                  />
+                </div>
               </div>
 
               {/* Password */}
@@ -211,7 +350,6 @@ export default function ServiceProviderRegister() {
                   type="password"
                   value={formData.password}
                   onChange={handleChange}
-                  className="border-2 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-primary"
                   required
                 />
                 {errors.password && <p className="text-sm text-red-500">{errors.password}</p>}
@@ -226,7 +364,6 @@ export default function ServiceProviderRegister() {
                   type="password"
                   value={formData.confirmPassword}
                   onChange={handleChange}
-                  className="border-2 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-primary"
                   required
                 />
                 {errors.confirmPassword && <p className="text-sm text-red-500">{errors.confirmPassword}</p>}
@@ -237,7 +374,7 @@ export default function ServiceProviderRegister() {
 
               {/* Submit Button */}
               <Button type="submit" className="w-full mt-4" disabled={isLoading}>
-                {isLoading ? "Creating account..." : "Create account"}
+                {isLoading ? "Creating account..." : "Register as Service Provider"}
               </Button>
             </form>
           </CardContent>
@@ -260,9 +397,9 @@ export default function ServiceProviderRegister() {
               </Link>
             </div>
             <div className="text-sm text-center">
-              Looking for pet services?{" "}
+              Registering as a pet owner?{" "}
               <Link href="/register" className="underline underline-offset-4 hover:text-primary">
-                Register as a pet owner
+                Register as pet owner
               </Link>
             </div>
           </CardFooter>
