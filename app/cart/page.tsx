@@ -1,3 +1,5 @@
+"use client"
+
 import { Minus, Plus, Trash2 } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
@@ -7,36 +9,14 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import EmptyCart from "./empty-cart"
+import { useCart } from "./CartContext"
 
 export default function CartPage() {
-  // This would typically come from a database or state management
-  const cartItems = [
-    {
-      id: 1,
-      name: "Chew Toy - Rubber Bone",
-      price: 129.99,
-      quantity: 1,
-      image: "https://allforpets.lk/wp-content/uploads/2021/04/TPR-Bone-Toy.jpg",
-    },
-    {
-      id: 2,
-      name: "Cat Scratching Post",
-      price: 89.99,
-      quantity: 2,
-      image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRo4Rz-4fPoJBDTsD6ai0kUyyv_ujCuqnspAA&s",
-    },
-    {
-      id: 3,
-      name: "Pet Travel Carrier",
-      price: 199.99,
-      quantity: 1,
-      image: "https://allforpets.lk/wp-content/uploads/2022/02/soft-sided-airline-approved-travel-dog-cat-carrier-1200x1200.jpg",
-    },
-  ]
+  const { cartItems, updateQuantity, removeFromCart } = useCart()
 
   // Calculate cart totals
-  const subtotal = cartItems.reduce((total, item) => total + item.price * item.quantity, 0)
   const shipping = 9.99
+  const subtotal = cartItems.reduce((total, item) => total + item.price * item.quantity, 0)
   const tax = subtotal * 0.07 // 7% tax rate
   const total = subtotal + shipping + tax
 
@@ -67,19 +47,40 @@ export default function CartPage() {
                     <p className="text-sm text-muted-foreground">Unit Price: ${item.price.toFixed(2)}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button variant="outline" size="icon" className="h-8 w-8">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                    >
                       <Minus className="h-4 w-4" />
                       <span className="sr-only">Decrease quantity</span>
                     </Button>
-                    <Input type="number" min="1" value={item.quantity} className="h-8 w-16 text-center" readOnly />
-                    <Button variant="outline" size="icon" className="h-8 w-8">
+                    <Input
+                      type="number"
+                      min="1"
+                      value={item.quantity}
+                      onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1)}
+                      className="h-8 w-16 text-center"
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                    >
                       <Plus className="h-4 w-4" />
                       <span className="sr-only">Increase quantity</span>
                     </Button>
                   </div>
                   <div className="flex flex-col items-end gap-2">
                     <span className="font-medium">${(item.price * item.quantity).toFixed(2)}</span>
-                    <Button variant="ghost" size="sm" className="h-8 px-2 text-destructive">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-2 text-destructive"
+                      onClick={() => removeFromCart(item.id)}
+                    >
                       <Trash2 className="h-4 w-4 mr-1" />
                       Remove
                     </Button>
@@ -122,8 +123,8 @@ export default function CartPage() {
               </div>
             </CardContent>
             <CardFooter>
-              <Button className="w-full" size="lg">
-                Proceed to Checkout
+              <Button className="w-full" size="lg" asChild>
+                <Link href="/payment">Proceed to Checkout</Link>
               </Button>
             </CardFooter>
           </Card>

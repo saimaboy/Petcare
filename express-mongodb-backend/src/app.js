@@ -42,6 +42,7 @@ const vetRoutes = require('./routes/vetRoutes');
 const authRoutes = require('./routes/auth');
 const veterinarianRoutes = require('./routes/vetRoutes');
 const appointmentRoutes = require('./routes/appointmentRoutes');
+const orders = require("./routes/orders");
 
 // Use routes
 app.use('/api/users', userRoutes);
@@ -54,7 +55,7 @@ app.use('/api/products', productRoutes);
 app.use('/api/articles', articleRoutes);
 app.use('/uploads', express.static('uploads'));
 app.use('/api/appointments', appointmentRoutes);
-
+app.use("/api/orders", orders);
 
 // 404 handler
 app.use((req, res) => {
