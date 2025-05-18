@@ -110,7 +110,7 @@ export default function UserRegister() {
         localStorage.setItem('userId', data.user.id)
       }
       
-      router.push("/dashboard")
+      router.push("/login")
     } catch (error) {
       console.error("Registration error:", error)
       setErrors({ form: error.message })

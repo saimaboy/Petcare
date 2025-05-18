@@ -169,7 +169,7 @@ const handleBookAppointment = async () => {
         <div className="space-y-4">
           {filteredVets.length > 0 ? (
             filteredVets.map((vet) => (
-              <Card key={vet._id} className="overflow-hidden">
+              <Card key={vet.id} className="overflow-hidden">
                 <div className="flex flex-col md:flex-row">
                   <div className="md:w-1/4 p-4 flex justify-center items-center">
                     <img
