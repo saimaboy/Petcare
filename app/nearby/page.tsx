@@ -1,73 +1,115 @@
-"use client"
+"use client";
 
-import { useState, useEffect, useRef } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { MapPin, Phone, Clock, ExternalLink } from "lucide-react"
+import { useState, useEffect, useRef } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MapPin, Phone, Clock, ExternalLink } from "lucide-react";
 
 export default function NearbyServices() {
-  const [services, setServices] = useState([])
-  const [searchTerm, setSearchTerm] = useState("")
-  const [serviceType, setServiceType] = useState("all")
-  const [userLocation, setUserLocation] = useState(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [activeService, setActiveService] = useState(null)
-  const [mapLoaded, setMapLoaded] = useState(false)
+  const [services, setServices] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [serviceType, setServiceType] = useState("all");
+  const [userLocation, setUserLocation] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [activeService, setActiveService] = useState(null);
+  const [mapLoaded, setMapLoaded] = useState(false);
 
-  const mapRef = useRef(null)
-  const googleMapRef = useRef(null)
-  const markersRef = useRef([])
+  const mapRef = useRef(null);
+  const googleMapRef = useRef(null);
+  const markersRef = useRef([]);
 
-  // Fetch services from API
+  // Helper function to geocode street address
+  const geocodeStreet = async (street) => {
+    if (!street) return null;
+    try {
+      const response = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(street)}&key=AIzaSyCjjuJkNoQp-ozJZWVnjzrByN_pz-drwho`
+      );
+      const data = await response.json();
+      console.log("Geocode Response for", street, ":", data); // Debug: Log geocode response
+      if (data.status === "OK" && data.results[0]) {
+        const { lat, lng } = data.results[0].geometry.location;
+        return { lat, lng };
+      }
+      console.warn("Geocode failed for street:", street, data.status);
+      return null;
+    } catch (err) {
+      console.error("Geocode Error:", err);
+      return null;
+    }
+  };
+
+  // Fetch services from API and ge polem code street addresses
   useEffect(() => {
-    setIsLoading(true)
-    fetch('http://localhost:5000/api/users/vets-and-pharmacies')
-      .then(res => res.json())
-      .then(data => {
-        const formattedServices = (data.data || []).map(service => ({
-          ...service,
-          type: service.role === "veterinarian" ? "Veterinarian" : "Pharmacy",
-          distance: "Calculating...",
-          lat: service.location?.coordinates?.[1] || service.latitude,
-          lng: service.location?.coordinates?.[0] || service.longitude,
-          hours: service.operatingHours || "Not specified",
-          image: service.image || "/placeholder.svg?height=200&width=300",
-        }))
-        setServices(formattedServices)
-        setIsLoading(false)
+    setIsLoading(true);
+    fetch("http://localhost:5000/api/users/vets-and-pharmacies")
+      .then((res) => res.json())
+      .then(async (data) => {
+        console.log("API Response:", data); // Debug: Log API response
+        const formattedServices = await Promise.all(
+          (data.data || []).map(async (service) => {
+            let lat = service.location?.coordinates?.[1] || service.latitude;
+            let lng = service.location?.coordinates?.[0] || service.longitude;
+
+            // If address is an object with a street field, try to geocode it
+            if (typeof service.address === "object" && service.address.street) {
+              const coords = await geocodeStreet(service.address.street);
+              if (coords) {
+                lat = coords.lat;
+                lng = coords.lng;
+              }
+            }
+
+            return {
+              ...service,
+              type: service.role === "veterinarian" ? "Veterinarian" : "Pharmacy",
+              distance: "Calculating...",
+              lat,
+              lng,
+              hours: service.operatingHours || "Not specified",
+              image: service.image || "/placeholder.svg?height=200&width=300",
+            };
+          })
+        );
+        setServices(formattedServices);
+        setIsLoading(false);
       })
-      .catch(() => {
-        setError("Failed to fetch services.")
-        setIsLoading(false)
-      })
-  }, [])
+      .catch((err) => {
+        console.error("Fetch Error:", err); // Debug: Log fetch error
+        setError("Failed to fetch services.");
+        setIsLoading(false);
+      });
+  }, []);
 
   // Load Google Maps API
   useEffect(() => {
     if (!window.google && !document.querySelector('script[src*="maps.googleapis.com/maps/api"]')) {
-      const googleMapScript = document.createElement("script")
-      googleMapScript.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyCjjuJkNoQp-ozJZWVnjzrByN_pz-drwho&libraries=places`
-      googleMapScript.async = true
-      googleMapScript.defer = true
+      const googleMapScript = document.createElement("script");
+      googleMapScript.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyCjjuJkNoQp-ozJZWVnjzrByN_pz-drwho&libraries=places`;
+      googleMapScript.async = true;
+      googleMapScript.defer = true;
 
       googleMapScript.addEventListener("load", () => {
-        setMapLoaded(true)
-      })
+        console.log("Google Maps API loaded"); // Debug: Confirm API load
+        setMapLoaded(true);
+      });
 
       googleMapScript.addEventListener("error", () => {
-        setError("Failed to load Google Maps. Please try again later.")
-        setIsLoading(false)
-      })
+        console.error("Google Maps API load error"); // Debug: Log API error
+        setError("Failed to load Google Maps. Please try again later.");
+        setIsLoading(false);
+      });
 
-      document.body.appendChild(googleMapScript)
+      document.body.appendChild(googleMapScript);
     } else if (window.google) {
-      setMapLoaded(true)
+      console.log("Google Maps API already loaded"); // Debug: Confirm existing API
+      setMapLoaded(true);
     }
-  }, [])
+  }, []);
 
   // Get user's location and calculate distances
   useEffect(() => {
@@ -77,62 +119,62 @@ export default function NearbyServices() {
           const userLoc = {
             lat: position.coords.latitude,
             lng: position.coords.longitude,
-          }
-          setUserLocation(userLoc)
+          };
+          console.log("User Location:", userLoc); // Debug: Log user location
+          setUserLocation(userLoc);
 
           // Calculate distances to each service once we have user location
-          setServices(prevServices =>
-            prevServices.map(service => {
+          setServices((prevServices) =>
+            prevServices.map((service) => {
               if (service.lat && service.lng) {
                 const distance = calculateDistance(
                   userLoc.lat,
                   userLoc.lng,
                   service.lat,
                   service.lng
-                )
+                );
                 return {
                   ...service,
-                  distance: `${distance.toFixed(1)} miles`
-                }
+                  distance: `${distance.toFixed(1)} miles`,
+                };
               }
-              return service
+              return service;
             })
-          )
+          );
         },
         (error) => {
-          console.error("Error getting location:", error)
-          setError("Unable to get your location. Please enable location services.")
-          setIsLoading(false)
-        },
-      )
+          console.error("Geolocation Error:", error); // Debug: Log geolocation error
+          setError("Unable to get your location. Please enable location services.");
+          setIsLoading(false);
+        }
+      );
     } else {
-      setError("Geolocation is not supported by your browser.")
-      setIsLoading(false)
+      setError("Geolocation is not supported by your browser.");
+      setIsLoading(false);
     }
-    // eslint-disable-next-line
-  }, [])
+  }, []);
 
   // Calculate distance between two points using Haversine formula
   const calculateDistance = (lat1, lon1, lat2, lon2) => {
-    const R = 3958.8 // Radius of the Earth in miles
-    const dLat = (lat2 - lat1) * Math.PI / 180
-    const dLon = (lon2 - lon1) * Math.PI / 180
+    const R = 3958.8; // Radius of the Earth in miles
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
     const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
       Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-      Math.sin(dLon / 2) * Math.sin(dLon / 2)
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-    const distance = R * c
-    return distance
-  }
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distance = R * c;
+    return distance;
+  };
 
   // Initialize map when Google Maps is loaded and user location is available
   useEffect(() => {
-    if (mapLoaded && userLocation && mapRef.current) {
-      initMap()
+    if (mapLoaded && userLocation && mapRef.current && !googleMapRef.current) {
+      console.log("Initializing map"); // Debug: Log map initialization
+      initMap();
     }
-    // eslint-disable-next-line
-  }, [mapLoaded, userLocation, mapRef.current, services, serviceType, searchTerm])
+  }, [mapLoaded, userLocation]);
 
   // Initialize Google Map
   const initMap = () => {
@@ -142,10 +184,11 @@ export default function NearbyServices() {
       mapTypeControl: false,
       streetViewControl: false,
       fullscreenControl: false,
-    }
+    };
 
-    const map = new window.google.maps.Map(mapRef.current, mapOptions)
-    googleMapRef.current = map
+    const map = new window.google.maps.Map(mapRef.current, mapOptions);
+    googleMapRef.current = map;
+    console.log("Map initialized:", map); // Debug: Log map object
 
     // Add user location marker
     new window.google.maps.Marker({
@@ -160,30 +203,35 @@ export default function NearbyServices() {
         strokeColor: "#FFFFFF",
       },
       title: "Your Location",
-    })
+    });
 
     // Add markers for services
-    addServiceMarkers(map)
-  }
+    addServiceMarkers(map);
+  };
 
   // Add markers for services
   const addServiceMarkers = (map) => {
     // Clear existing markers
-    markersRef.current.forEach(marker => marker.setMap(null))
-    markersRef.current = []
+    markersRef.current.forEach((marker) => marker.setMap(null));
+    markersRef.current = [];
 
-    // Filter services
-    const servicesToShow = filteredServices
+    // Filter services based on searchTerm and serviceType
+    const servicesToShow = filteredServices;
+    console.log("Services to show on map:", servicesToShow); // Debug: Log filtered services
 
     // Add markers for filtered services
     servicesToShow.forEach((service) => {
-      if (!service.lat || !service.lng) return
-      const markerIcon = {
-        url: service.type === "Veterinarian"
-          ? "https://maps.google.com/mapfiles/ms/icons/red-dot.png"
-          : "https://maps.google.com/mapfiles/ms/icons/blue-dot.png",
-        scaledSize: new window.google.maps.Size(32, 32),
+      if (!service.lat || !service.lng) {
+        console.warn("Invalid coordinates for service:", service.name); // Debug: Log invalid coords
+        return;
       }
+      const markerIcon = {
+        url:
+          service.type === "Veterinarian"
+            ? "https://maps.google.com/mapfiles/ms/icons/red-dot.png"
+            : "https://maps.google.com/mapfiles/ms/icons/blue-dot.png",
+        scaledSize: new window.google.maps.Size(32, 32),
+      };
 
       const marker = new window.google.maps.Marker({
         position: { lat: service.lat, lng: service.lng },
@@ -191,14 +239,15 @@ export default function NearbyServices() {
         icon: markerIcon,
         title: service.name,
         animation: window.google.maps.Animation.DROP,
-      })
+      });
 
       // Info window content
-      const addressString = typeof service.address === "object"
-        ? [service.address.street, service.address.city, service.address.state, service.address.zipCode, service.address.country]
-            .filter(Boolean)
-            .join(", ")
-        : service.address || "N/A"
+      const addressString =
+        typeof service.address === "object"
+          ? [service.address.street, service.address.city, service.address.state, service.address.zipCode, service.address.country]
+              .filter(Boolean)
+              .join(", ")
+          : service.address || "N/A";
 
       const infoWindowContent = `
         <div style="width: 250px; padding: 10px;">
@@ -221,65 +270,68 @@ export default function NearbyServices() {
             </button>
           </div>
         </div>
-      `
+      `;
 
       const infoWindow = new window.google.maps.InfoWindow({
         content: infoWindowContent,
-      })
+      });
 
       marker.addListener("click", () => {
         if (activeService) {
-          activeService.close()
+          activeService.close();
         }
-        infoWindow.open(map, marker)
-        setActiveService(infoWindow)
-      })
+        infoWindow.open(map, marker);
+        setActiveService(infoWindow);
+      });
 
-      markersRef.current.push(marker)
-    })
+      markersRef.current.push(marker);
+    });
 
     // Adjust map bounds to fit all markers if we have services
     if (servicesToShow.length > 0) {
-      const bounds = new window.google.maps.LatLngBounds()
-      bounds.extend(userLocation)
-      servicesToShow.forEach(service => {
+      const bounds = new window.google.maps.LatLngBounds();
+      bounds.extend(userLocation);
+      servicesToShow.forEach((service) => {
         if (service.lat && service.lng) {
-          bounds.extend({ lat: service.lat, lng: service.lng })
+          bounds.extend({ lat: service.lat, lng: service.lng });
         }
-      })
-      map.fitBounds(bounds)
+      });
+      map.fitBounds(bounds);
       const listener = window.google.maps.event.addListener(map, "idle", () => {
-        if (map.getZoom() > 16) map.setZoom(16)
-        window.google.maps.event.removeListener(listener)
-      })
+        if (map.getZoom() > 16) map.setZoom(16);
+        window.google.maps.event.removeListener(listener);
+      });
+    } else {
+      console.log("No services to display on map"); // Debug: Log if no services
     }
-  }
+  };
 
   // Filtering logic
   const filteredServices = services.filter((service) => {
-    const name = service.name || service.businessName || ""
-    const address = typeof service.address === "object"
-      ? [service.address.street, service.address.city, service.address.state, service.address.zipCode, service.address.country]
-          .filter(Boolean)
-          .join(", ")
-      : service.address || ""
+    const name = service.name || service.businessName || "";
+    const address =
+      typeof service.address === "object"
+        ? [service.address.street, service.address.city, service.address.state, service.address.zipCode, service.address.country]
+            .filter(Boolean)
+            .join(", ")
+        : service.address || "";
     const matchesSearch =
       name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      address.toLowerCase().includes(searchTerm.toLowerCase())
+      address.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType =
       serviceType === "all" ||
       (serviceType === "veterinarian" && service.type === "Veterinarian") ||
-      (serviceType === "pharmacy" && service.type === "Pharmacy")
-    return matchesSearch && matchesType
-  })
+      (serviceType === "pharmacy" && service.type === "Pharmacy");
+    return matchesSearch && matchesType;
+  });
 
   // Update markers when filters change
   useEffect(() => {
     if (googleMapRef.current) {
-      addServiceMarkers(googleMapRef.current)
+      console.log("Updating markers with new filters"); // Debug: Log filter update
+      addServiceMarkers(googleMapRef.current);
     }
-    // eslint-disable-next-line
-  }, [searchTerm, serviceType, services])
+  }, [searchTerm, serviceType, services]);
 
   return (
     <div className="container py-8">
@@ -385,7 +437,7 @@ export default function NearbyServices() {
                             </div>
                             <div className="flex items-center text-sm text-muted-foreground mb-2">
                               <Phone className="h-4 w-4 mr-1" />
-                              {service.phone}
+                              {service.phone || "N/A"}
                             </div>
                             <div className="flex items-center text-sm text-muted-foreground">
                               <Clock className="h-4 w-4 mr-1" />
@@ -396,13 +448,13 @@ export default function NearbyServices() {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${service.lat},${service.lng}`, '_blank')}
+                              onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${service.lat},${service.lng}`, "_blank")}
                             >
                               Get Directions
                             </Button>
                             <Button
                               size="sm"
-                              onClick={() => window.open(`tel:${service.phone?.replace(/\D/g, '')}`, '_self')}
+                              onClick={() => window.open(`tel:${service.phone?.replace(/\D/g, "")}`, "_self")}
                             >
                               Call Now
                             </Button>
@@ -512,5 +564,5 @@ export default function NearbyServices() {
         </Tabs>
       </div>
     </div>
-  )
+  );
 }
