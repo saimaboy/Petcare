@@ -21,6 +21,8 @@ export default function VetDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+
+  // Appointments state
   const [upcomingAppointments, setUpcomingAppointments] = useState<any[]>([]);
   const [appointmentsLoading, setAppointmentsLoading] = useState(true);
   const [appointmentsError, setAppointmentsError] = useState<string | null>(null);
@@ -85,41 +87,41 @@ export default function VetDashboard() {
     fetchVetData();
   }, [router]);
 
-const fetchMyArticles = async (token: string, vetId: string) => {
-  try {
-    const res = await fetch(`${API_URL}/articles`);
-    const data = await res.json();
-    console.log("Vet ID:", vetId);
-    console.log("Articles:", data.data);
-    setMyArticles((data.data || []).filter((a: any) => {
-      if (!a.author) return false;
-      if (typeof a.author === "string") return a.author === vetId;
-      if (typeof a.author === "object" && a.author._id) return a.author._id === vetId;
-      return false;
-    }));
-  } catch {
-    setMyArticles([]);
-  }
-};
+  const fetchMyArticles = async (token: string, vetId: string) => {
+    try {
+      const res = await fetch(`${API_URL}/articles`);
+      const data = await res.json();
+      setMyArticles((data.data || []).filter((a: any) => {
+        if (!a.author) return false;
+        if (typeof a.author === "string") return a.author === vetId;
+        if (typeof a.author === "object" && a.author._id) return a.author._id === vetId;
+        return false;
+      }));
+    } catch {
+      setMyArticles([]);
+    }
+  };
+
+  // Fetch appointments for vet
+  const fetchAppointments = async () => {
+    setAppointmentsLoading(true);
+    setAppointmentsError(null);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_URL}/appointments/vet`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error("Failed to fetch appointments");
+      const data = await res.json();
+      setUpcomingAppointments(data.data || []);
+    } catch (err: any) {
+      setAppointmentsError(err.message || "Failed to load appointments");
+    } finally {
+      setAppointmentsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchAppointments = async () => {
-      setAppointmentsLoading(true);
-      setAppointmentsError(null);
-      try {
-        const token = localStorage.getItem('token');
-        const res = await fetch(`${API_URL}/appointments/vet`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (!res.ok) throw new Error("Failed to fetch appointments");
-        const data = await res.json();
-        setUpcomingAppointments(data.data || []);
-      } catch (err: any) {
-        setAppointmentsError(err.message || "Failed to load appointments");
-      } finally {
-        setAppointmentsLoading(false);
-      }
-    };
     fetchAppointments();
   }, []);
 
@@ -189,6 +191,15 @@ const fetchMyArticles = async (token: string, vetId: string) => {
     router.push('/login');
   };
 
+  // --- Accept/Decline frontend only ---
+  const handleFrontendAppointmentAction = (idx: number, action: "accepted" | "declined") => {
+    setUpcomingAppointments((prev) =>
+      prev.map((a, i) =>
+        i === idx ? { ...a, status: action } : a
+      )
+    );
+  };
+
   if (isLoading) {
     return (
       <div className="container mx-auto py-16 flex justify-center items-center min-h-[400px]">
@@ -222,9 +233,6 @@ const fetchMyArticles = async (token: string, vetId: string) => {
           </p>
         </div>
         <div className="mt-4 md:mt-0">
-          <Button onClick={() => router.push('/appointments/create')}>
-            <Plus className="mr-2 h-4 w-4" /> New Appointment
-          </Button>
         </div>
       </div>
 
@@ -296,57 +304,57 @@ const fetchMyArticles = async (token: string, vetId: string) => {
           
           <div className="grid gap-6 md:grid-cols-2 mb-8">
             {/* Upcoming Appointments */}
-<Card className="col-span-1">
-  <CardHeader>
-    <CardTitle>Upcoming Appointments</CardTitle>
-    <CardDescription>Your schedule for today and tomorrow</CardDescription>
-  </CardHeader>
-  <CardContent>
-    {appointmentsLoading ? (
-      <div className="text-center py-4">Loading...</div>
-    ) : appointmentsError ? (
-      <div className="text-center text-red-500 py-4">{appointmentsError}</div>
-    ) : (
-      <div className="space-y-4">
-        {upcomingAppointments.length === 0 ? (
-          <div className="text-muted-foreground text-center">No upcoming appointments.</div>
-        ) : (
-          upcomingAppointments.map((appointment) => (
-            <div key={appointment._id} className="flex items-start justify-between border-b pb-4 last:border-0 last:pb-0">
-              <div className="flex items-start gap-4">
-                <Avatar className="h-10 w-10 border">
-                  <AvatarFallback>
-                    {appointment.petName ? appointment.petName.charAt(0) : "P"}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="font-medium">{appointment.petName || "Pet"}</p>
-                  <p className="text-sm text-muted-foreground">
-                    Owner: {appointment.ownerName || "Unknown"}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {appointment.reason || ""}
-                  </p>
+            <Card className="col-span-1">
+              <CardHeader>
+                <CardTitle>Upcoming Appointments</CardTitle>
+                <CardDescription>Your schedule for today and tomorrow</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {appointmentsLoading ? (
+                  <div className="text-center py-4">Loading...</div>
+                ) : appointmentsError ? (
+                  <div className="text-center text-red-500 py-4">{appointmentsError}</div>
+                ) : (
+                  <div className="space-y-4">
+                    {upcomingAppointments.length === 0 ? (
+                      <div className="text-muted-foreground text-center">No upcoming appointments.</div>
+                    ) : (
+                      upcomingAppointments.map((appointment) => (
+                        <div key={appointment._id} className="flex items-start justify-between border-b pb-4 last:border-0 last:pb-0">
+                          <div className="flex items-start gap-4">
+                            <Avatar className="h-10 w-10 border">
+                              <AvatarFallback>
+                                {appointment.petName ? appointment.petName.charAt(0) : "P"}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <p className="font-medium">{appointment.petName || "Pet"}</p>
+                              <p className="text-sm text-muted-foreground">
+                                Owner: {appointment.ownerName || "Unknown"}
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                {appointment.reason || ""}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <Badge variant={appointment.date === "Today" ? "default" : "outline"}>
+                              {appointment.date || appointment.appointmentDate}
+                            </Badge>
+                            <p className="mt-1 text-sm font-medium">{appointment.time || ""}</p>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+                <div className="mt-4">
+                  <Button variant="outline" className="w-full" onClick={() => setActiveTab("appointments")}>
+                    View All Appointments <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
                 </div>
-              </div>
-              <div className="text-right">
-                <Badge variant={appointment.date === "Today" ? "default" : "outline"}>
-                  {appointment.date || appointment.appointmentDate}
-                </Badge>
-                <p className="mt-1 text-sm font-medium">{appointment.time || ""}</p>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-    )}
-    <div className="mt-4">
-      <Button variant="outline" className="w-full" onClick={() => setActiveTab("appointments")}>
-        View All Appointments <ArrowRight className="ml-2 h-4 w-4" />
-      </Button>
-    </div>
-  </CardContent>
-</Card>
+              </CardContent>
+            </Card>
             
             {/* Recent Patients */}
             <Card className="col-span-1">
@@ -380,9 +388,6 @@ const fetchMyArticles = async (token: string, vetId: string) => {
                   ))}
                 </div>
                 <div className="mt-4">
-                  <Button variant="outline" className="w-full" onClick={() => setActiveTab("patients")}>
-                    View All Patients <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -414,14 +419,12 @@ const fetchMyArticles = async (token: string, vetId: string) => {
                 </div>
               </div>
               <div className="mt-4">
-                <Button variant="outline" onClick={() => setActiveTab("profile")}>
-                  Edit Profile <Settings className="ml-2 h-4 w-4" />
-                </Button>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
         
+
         <TabsContent value="appointments">
           <Card>
             <CardHeader>
@@ -434,16 +437,75 @@ const fetchMyArticles = async (token: string, vetId: string) => {
               <CardDescription>Manage your schedule and patient appointments</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-10">
-                <h3 className="text-lg font-medium">Full Appointments Calendar</h3>
-                <p className="text-muted-foreground mb-4">This section would contain a full calendar view of all appointments</p>
-                <Button variant="outline">Coming Soon</Button>
-              </div>
+              {appointmentsLoading ? (
+                <div className="text-center py-4">Loading...</div>
+              ) : appointmentsError ? (
+                <div className="text-center text-red-500 py-4">{appointmentsError}</div>
+              ) : (
+                <div className="space-y-4">
+                  {upcomingAppointments.length === 0 ? (
+                    <div className="text-muted-foreground text-center">No appointments found.</div>
+                  ) : (
+                    upcomingAppointments.map((appointment, idx) => (
+                      <Card key={appointment._id}>
+                        <div className="flex items-start justify-between p-4">
+                          <div className="flex items-start gap-4">
+                            <Avatar className="h-10 w-10 border">
+                              <AvatarFallback>
+                                {appointment.petName ? appointment.petName.charAt(0) : "P"}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <p className="font-medium">{appointment.petName || "Pet"}</p>
+                              <p className="text-sm text-muted-foreground">
+                                Owner: {appointment.ownerName || "Unknown"}
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                {appointment.reason || ""}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <Badge variant={appointment.date === "Today" ? "default" : "outline"}>
+                              {appointment.date || appointment.appointmentDate}
+                            </Badge>
+                            <p className="mt-1 text-sm font-medium">{appointment.time || ""}</p>
+                            {/* Accept/Decline Buttons (frontend only) */}
+                            {appointment.status === "pending" && (
+                              <div className="flex gap-2 mt-2">
+                                <Button
+                                  size="sm"
+                                  variant="default"
+                                  onClick={() => handleFrontendAppointmentAction(idx, "accepted")}
+                                >
+                                  Accept
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => handleFrontendAppointmentAction(idx, "declined")}
+                                >
+                                  Decline
+                                </Button>
+                              </div>
+                            )}
+                            {appointment.status === "accepted" && (
+                              <Badge variant="default" className="mt-2">Accepted</Badge>
+                            )}
+                            {appointment.status === "declined" && (
+                              <Badge variant="destructive" className="mt-2">Declined</Badge>
+                            )}
+                          </div>
+                        </div>
+                      </Card>
+                    ))
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
-      
-        
+
         <TabsContent value="patients">
           <Card>
             <CardHeader>
@@ -523,26 +585,20 @@ const fetchMyArticles = async (token: string, vetId: string) => {
                 )}
               </div>
               
-<div className="mt-6 flex flex-wrap gap-4">
-  <Button onClick={() => router.push('/profile/edit')}>
-    Edit Profile
-  </Button>
-  <Button variant="outline" onClick={() => router.push('/change-password')}>
-    Change Password
-  </Button>
-  <Button 
-    variant="destructive" 
-    onClick={handleLogout}
-    className="ml-auto"
-  >
-    Logout
-  </Button>
-</div>
+              <div className="mt-6 flex flex-wrap gap-4">
+                <Button 
+                  variant="destructive" 
+                  onClick={handleLogout}
+                  className="ml-auto"
+                >
+                  Logout
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
 
- <TabsContent value="articles">
+        <TabsContent value="articles">
           <Card>
             <CardHeader>
               <div className="flex justify-between items-center">
