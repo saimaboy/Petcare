@@ -14,7 +14,7 @@ import {
   navigationMenuTriggerStyle,
 } from "@/components/ui/navigation-menu"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { Menu, Search, User, ShoppingCart } from "lucide-react" // Added ShoppingCart icon
+import { Menu, Search, User, ShoppingCart, ClipboardList } from "lucide-react" // Added ClipboardList icon
 import { cn } from "@/lib/utils"
 import { usePathname } from "next/navigation"
 
@@ -178,12 +178,17 @@ export default function Header() {
               <span className="sr-only">Search</span>
             </Button>
           )}
-          {/* Added Cart Button */}
+          <Link href="/orders">
+            <Button variant="ghost" size="icon">
+              <ClipboardList className="h-5 w-5" />
+              <span className="sr-only">Orders</span>
+            </Button>
+          </Link>
           <Link href="/cart">
-          <Button variant="ghost"  size="icon">
-            <ShoppingCart className="h-5 w-5" />
-            <span  className="sr-only">Cart</span>
-          </Button>
+            <Button variant="ghost" size="icon">
+              <ShoppingCart className="h-5 w-5" />
+              <span className="sr-only">Cart</span>
+            </Button>
           </Link>
           <Link href="/profile">
             <Button variant="ghost" size="icon">

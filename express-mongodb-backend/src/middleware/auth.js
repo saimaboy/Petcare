@@ -1,55 +1,72 @@
-const jwt = require('jsonwebtoken');
-const asyncHandler = require('./async');
-const User = require('../models/User');
+const jwt = require("jsonwebtoken");
+const asyncHandler = require("./async");
+const User = require("../models/User");
 
 // Protect routes - verify token
 exports.protect = asyncHandler(async (req, res, next) => {
   let token;
-  
-  // Add debug logs to trace authentication flow
-  console.log('Authentication headers:', req.headers.authorization);
+
+  // Log request headers for debugging
+  console.log("Authentication headers:", req.headers.authorization);
 
   // Check for token in Authorization header
-  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-    // Get token from header (remove "Bearer " prefix)
-    token = req.headers.authorization.split(' ')[1];
-    console.log('Token extracted from Authorization header');
+  if (req.headers.authorization && req.headers.authorization.startsWith("Bearer")) {
+    token = req.headers.authorization.split(" ")[1];
+    console.log("Token extracted from Authorization header");
   }
 
-  // Make sure token exists
+  // Check if token exists
   if (!token) {
-    console.log('No token found in request');
+    console.log("No token found in request");
     return res.status(401).json({
       success: false,
-      error: 'Not authorized to access this route'
+      error: "Not authorized: No token provided",
     });
   }
 
   try {
-    // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    console.log('Token decoded successfully:', decoded);
-
-    // Find user by ID from token
-    const user = await User.findById(decoded.id);
-
-    if (!user) {
-      console.log('User not found for token');
-      return res.status(401).json({
+    // Verify JWT_SECRET exists
+    if (!process.env.JWT_SECRET) {
+      console.error("JWT_SECRET is not defined in environment variables");
+      return res.status(500).json({
         success: false,
-        error: 'User not found'
+        error: "Server configuration error",
       });
     }
 
-    // Set req.user to the authenticated user
+    // Verify token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log("Token decoded successfully:", decoded);
+
+    // Ensure decoded token has id
+    if (!decoded.id) {
+      console.log("Token payload missing id field");
+      return res.status(401).json({
+        success: false,
+        error: "Invalid token: Missing user ID",
+      });
+    }
+
+    // Find user by ID
+    const user = await User.findById(decoded.id).select("-password"); // Exclude password for security
+    if (!user) {
+      console.log("User not found for ID:", decoded.id);
+      return res.status(401).json({
+        success: false,
+        error: "User not found",
+      });
+    }
+
+    // Attach user to request
     req.user = user;
-    console.log('User attached to request:', user._id);
+    req.userId = user._id.toString(); // Add req.userId for compatibility with orders routes
+    console.log("User attached to request:", user._id);
     next();
   } catch (err) {
-    console.error('Token verification failed:', err.message);
+    console.error("Token verification failed:", err.message, err.stack);
     return res.status(401).json({
       success: false,
-      error: 'Not authorized to access this route'
+      error: `Not authorized: ${err.message || "Invalid token"}`,
     });
   }
 });
@@ -60,17 +77,17 @@ exports.authorize = (...roles) => {
     if (!req.user) {
       return res.status(401).json({
         success: false,
-        error: 'User not authenticated'
+        error: "User not authenticated",
       });
     }
 
     if (!roles.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        error: `User role '${req.user.role}' is not authorized to access this route`
+        error: `User role '${req.user.role}' is not authorized to access this route`,
       });
     }
-    
+
     next();
   };
 };
