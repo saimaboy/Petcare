@@ -102,7 +102,7 @@ router.get('/vets-and-pharmacies', async (req, res) => {
   }
 });
 
-router.post('/profile-image/:id', upload.single('profileImage'), async (req, res) => {
+router.post('/profile-image', upload.single('profileImage'), async (req, res) => {
   try {
     const userId = req.params.id;
     if (!req.file) {
