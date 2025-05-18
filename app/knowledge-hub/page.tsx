@@ -120,11 +120,17 @@ export default function KnowledgeHub() {
                   ).map((article) => (
                     <Card key={article._id} className="overflow-hidden">
                       <div className="aspect-video relative">
-                        <img
-                          src={article.image || "/placeholder.svg"}
-                          alt={article.title}
-                          className="object-cover w-full h-full"
-                        />
+<img
+  src={
+    article.image
+      ? article.image.startsWith("http")
+        ? article.image
+        : `http://localhost:5000/${article.image.replace(/^\/+/, "")}`
+      : "/placeholder.svg"
+  }
+  alt={article.title}
+  className="object-cover w-full h-full"
+/>
                         <div className="absolute top-2 right-2 bg-primary text-primary-foreground text-xs px-2 py-1 rounded">
                           {article.category}
                         </div>
