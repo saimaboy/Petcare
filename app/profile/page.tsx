@@ -3,11 +3,14 @@
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Loader2, User, MapPin, Phone, Mail, Building, Award, Camera, X } from "lucide-react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
+import { Loader2, User, MapPin, Phone, Mail, Building, Award, Camera, X, Edit, LogOut, Save, Check } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
@@ -19,6 +22,28 @@ export default function UserProfile() {
   const [profileImage, setProfileImage] = useState(null)
   const [isUploadingImage, setIsUploadingImage] = useState(false)
   const fileInputRef = useRef(null)
+  
+  // Add a timestamp to force image refresh when updated
+  const [imageTimestamp, setImageTimestamp] = useState(Date.now())
+  
+  // Add edit mode state
+  const [isEditMode, setIsEditMode] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phoneNumber: '',
+    address: {
+      street: '',
+      city: '',
+      state: '',
+      zipCode: '',
+      country: ''
+    },
+    businessName: '',
+    licenseNumber: '',
+    serviceType: ''
+  })
 
   // Fetch user data on component mount
   useEffect(() => {
@@ -73,6 +98,23 @@ export default function UserProfile() {
         console.log('User data retrieved successfully');
         setUser(data.data);
         
+        // Initialize form data with user data
+        setFormData({
+          name: data.data.name || '',
+          email: data.data.email || '',
+          phoneNumber: data.data.phoneNumber || '',
+          address: {
+            street: data.data.address?.street || '',
+            city: data.data.address?.city || '',
+            state: data.data.address?.state || '',
+            zipCode: data.data.address?.zipCode || '',
+            country: data.data.address?.country || ''
+          },
+          businessName: data.data.businessName || '',
+          licenseNumber: data.data.licenseNumber || '',
+          serviceType: data.data.serviceType || ''
+        });
+        
         // Set profile image if available
         if (data.data.profileImage) {
           setProfileImage(data.data.profileImage);
@@ -96,10 +138,102 @@ export default function UserProfile() {
   }, [router]);
 
   const handleEditProfile = () => {
-    router.push('/profile/edit');
+    setIsEditMode(true);
   };
 
-  const handleProfileImageClick = () => {
+  const handleCancelEdit = () => {
+    // Reset form data to current user data
+    setFormData({
+      name: user?.name || '',
+      email: user?.email || '',
+      phoneNumber: user?.phoneNumber || '',
+      address: {
+        street: user?.address?.street || '',
+        city: user?.address?.city || '',
+        state: user?.address?.state || '',
+        zipCode: user?.address?.zipCode || '',
+        country: user?.address?.country || ''
+      },
+      businessName: user?.businessName || '',
+      licenseNumber: user?.licenseNumber || '',
+      serviceType: user?.serviceType || ''
+    });
+    
+    // Exit edit mode
+    setIsEditMode(false);
+  };
+  
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    
+    if (name.includes('.')) {
+      // Handle nested objects (like address.street)
+      const [parent, child] = name.split('.');
+      setFormData(prev => ({
+        ...prev,
+        [parent]: {
+          ...prev[parent],
+          [child]: value
+        }
+      }));
+    } else {
+      // Handle regular fields
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
+  };
+  
+ const handleSaveProfile = async () => {
+  setIsSaving(true);
+  
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      throw new Error('Authentication required');
+    }
+    
+    // Debug the user object structure
+    console.log("User object structure:", user);
+    
+    // Try direct PUT to /auth/me endpoint which doesn't require ID
+    console.log('Updating profile without explicit ID');
+    
+    const response = await fetch(`${API_URL}/auth/me`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(formData)
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Server error:', errorText);
+      throw new Error('Failed to update profile');
+    }
+    
+    const result = await response.json();
+    
+    // Update local user state with the updated data
+    setUser(result.data);
+    
+    // Exit edit mode
+    setIsEditMode(false);
+    
+    // Show success message
+    alert('Profile updated successfully!');
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    alert(`Failed to update profile: ${error.message}`);
+  } finally {
+    setIsSaving(false);
+  }
+};
+
+const handleProfileImageClick = () => {
     fileInputRef.current?.click();
   };
 
@@ -136,6 +270,8 @@ export default function UserProfile() {
       const result = await response.json();
       
       if (result.success && result.profileImage) {
+        // Update the timestamp to force image refresh
+        setImageTimestamp(Date.now());
         setProfileImage(result.profileImage);
         
         // Update user object with new profile image
@@ -191,6 +327,15 @@ export default function UserProfile() {
     }
   };
 
+  const handleLogout = () => {
+    // Remove authentication data
+    localStorage.removeItem('token');
+    localStorage.removeItem('userId');
+    
+    // Redirect to login page
+    router.push('/login');
+  };
+
   if (isLoading) {
     return (
       <div className="container py-16 flex justify-center items-center min-h-[400px]">
@@ -218,10 +363,42 @@ export default function UserProfile() {
       <div className="max-w-3xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold">Your Profile</h1>
-          <Button onClick={handleEditProfile}>Edit Profile</Button>
+          <div className="flex gap-3">
+            {isEditMode ? (
+              <>
+                <Button variant="outline" onClick={handleCancelEdit} disabled={isSaving}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSaveProfile} disabled={isSaving}>
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="mr-2 h-4 w-4" />
+                      Save Changes
+                    </>
+                  )}
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="outline" onClick={handleLogout}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Logout
+                </Button>
+                <Button onClick={handleEditProfile}>
+                  <Edit className="mr-2 h-4 w-4" />
+                  Edit Profile
+                </Button>
+              </>
+            )}
+          </div>
         </div>
         
-        {/* New Profile Image Card */}
+        {/* Profile Image Card */}
         <Card className="mb-6">
           <CardHeader>
             <CardTitle>Profile Picture</CardTitle>
@@ -232,7 +409,10 @@ export default function UserProfile() {
               <div className="relative">
                 <Avatar className="h-24 w-24 cursor-pointer" onClick={handleProfileImageClick}>
                   {profileImage ? (
-                    <AvatarImage src={profileImage} alt={user?.name} />
+                    <AvatarImage 
+                      src={`${profileImage}?t=${imageTimestamp}`} 
+                      alt={user?.name} 
+                    />
                   ) : (
                     <AvatarFallback className="text-4xl bg-primary/10">
                       {user?.name?.charAt(0) || '?'}
@@ -283,6 +463,30 @@ export default function UserProfile() {
           </CardContent>
         </Card>
         
+        {!isEditMode && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Edit className="h-5 w-5" />
+                Edit Your Profile
+              </CardTitle>
+              <CardDescription>Manage your personal information</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <p className="text-sm">
+                  You can update your personal information, address details, and professional information if applicable.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Button onClick={handleEditProfile}>
+                    Edit Personal Information
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        
         <div className="space-y-6">
           <Card>
             <CardHeader>
@@ -293,38 +497,73 @@ export default function UserProfile() {
               <CardDescription>Your personal details</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Full Name</p>
-                  <p className="text-lg">{user?.name || 'Not provided'}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Email Address</p>
-                  <div className="flex items-center gap-1">
-                    <Mail className="h-4 w-4 text-muted-foreground" />
-                    <p className="text-lg">{user?.email}</p>
+              {isEditMode ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Full Name</Label>
+                    <Input 
+                      id="name" 
+                      name="name" 
+                      value={formData.name} 
+                      onChange={handleInputChange}
+                      placeholder="Your full name"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email Address</Label>
+                    <Input 
+                      id="email" 
+                      name="email" 
+                      type="email" 
+                      value={formData.email} 
+                      onChange={handleInputChange}
+                      placeholder="Your email address"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phoneNumber">Phone Number</Label>
+                    <Input 
+                      id="phoneNumber" 
+                      name="phoneNumber" 
+                      value={formData.phoneNumber} 
+                      onChange={handleInputChange}
+                      placeholder="Your phone number"
+                    />
                   </div>
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Phone Number</p>
-                  <div className="flex items-center gap-1">
-                    <Phone className="h-4 w-4 text-muted-foreground" />
-                    <p className="text-lg">{user?.phoneNumber || 'Not provided'}</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Full Name</p>
+                    <p className="text-lg">{user?.name || 'Not provided'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Email Address</p>
+                    <div className="flex items-center gap-1">
+                      <Mail className="h-4 w-4 text-muted-foreground" />
+                      <p className="text-lg">{user?.email}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Phone Number</p>
+                    <div className="flex items-center gap-1">
+                      <Phone className="h-4 w-4 text-muted-foreground" />
+                      <p className="text-lg">{user?.phoneNumber || 'Not provided'}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Account Type</p>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={user?.role === 'veterinarian' ? 'default' : 'outline'}>
+                        {user?.role?.charAt(0)?.toUpperCase() + user?.role?.slice(1) || 'User'}
+                      </Badge>
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Account Type</p>
-                  <div className="flex items-center gap-2">
-                    <Badge variant={user?.role === 'veterinarian' ? 'default' : 'outline'}>
-                      {user?.role?.charAt(0)?.toUpperCase() + user?.role?.slice(1) || 'User'}
-                    </Badge>
-                  </div>
-                </div>
-              </div>
+              )}
             </CardContent>
           </Card>
           
-          {/* Rest of your cards remain the same */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -334,8 +573,70 @@ export default function UserProfile() {
               <CardDescription>Your location details</CardDescription>
             </CardHeader>
             <CardContent>
-              {user?.address && (
-                Object.values(user.address).some(value => value) ? (
+              {isEditMode ? (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="street">Street Address</Label>
+                    <Textarea 
+                      id="street" 
+                      name="address.street" 
+                      value={formData.address.street} 
+                      onChange={handleInputChange}
+                      placeholder="Street address"
+                      rows={2}
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="city">City</Label>
+                      <Input 
+                        id="city" 
+                        name="address.city" 
+                        value={formData.address.city} 
+                        onChange={handleInputChange}
+                        placeholder="City"
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="state">State/Province</Label>
+                      <Input 
+                        id="state" 
+                        name="address.state" 
+                        value={formData.address.state} 
+                        onChange={handleInputChange}
+                        placeholder="State or Province"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="zipCode">Postal/ZIP Code</Label>
+                      <Input 
+                        id="zipCode" 
+                        name="address.zipCode" 
+                        value={formData.address.zipCode} 
+                        onChange={handleInputChange}
+                        placeholder="Postal or ZIP code"
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="country">Country</Label>
+                      <Input 
+                        id="country" 
+                        name="address.country" 
+                        value={formData.address.country} 
+                        onChange={handleInputChange}
+                        placeholder="Country"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                user?.address && Object.values(user.address).some(value => value) ? (
                   <div className="space-y-1">
                     {user.address.street && <p>{user.address.street}</p>}
                     <p>
@@ -354,7 +655,8 @@ export default function UserProfile() {
             </CardContent>
           </Card>
           
-          {(user?.role === 'veterinarian' || user?.role === 'pharmacist') && (
+          {(user?.role === 'veterinarian' || user?.role === 'pharmacist' || 
+            formData.businessName || formData.licenseNumber || formData.serviceType) && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -364,27 +666,94 @@ export default function UserProfile() {
                 <CardDescription>Your professional details</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Business Name</p>
-                    <p className="text-lg">{user?.businessName || 'Not provided'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">License Number</p>
-                    <div className="flex items-center gap-1">
-                      <Award className="h-4 w-4 text-muted-foreground" />
-                      <p className="text-lg">{user?.licenseNumber || 'Not provided'}</p>
+                {isEditMode ? (
+                  <div className="grid grid-cols-1 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="businessName">Business Name</Label>
+                      <Input 
+                        id="businessName" 
+                        name="businessName" 
+                        value={formData.businessName} 
+                        onChange={handleInputChange}
+                        placeholder="Your business or practice name"
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="licenseNumber">License Number</Label>
+                      <Input 
+                        id="licenseNumber" 
+                        name="licenseNumber" 
+                        value={formData.licenseNumber} 
+                        onChange={handleInputChange}
+                        placeholder="Your professional license number"
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="serviceType">Service Type</Label>
+                      <Input 
+                        id="serviceType" 
+                        name="serviceType" 
+                        value={formData.serviceType} 
+                        onChange={handleInputChange}
+                        placeholder="Type of service provided"
+                      />
                     </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Service Type</p>
-                    <p className="text-lg capitalize">{user?.serviceType || 'Not specified'}</p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Business Name</p>
+                      <p className="text-lg">{user?.businessName || 'Not provided'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">License Number</p>
+                      <div className="flex items-center gap-1">
+                        <Award className="h-4 w-4 text-muted-foreground" />
+                        <p className="text-lg">{user?.licenseNumber || 'Not provided'}</p>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Service Type</p>
+                      <p className="text-lg capitalize">{user?.serviceType || 'Not specified'}</p>
+                    </div>
                   </div>
-                </div>
+                )}
               </CardContent>
             </Card>
           )}
         </div>
+        
+        {isEditMode && (
+          <div className="mt-8 flex justify-end">
+            <div className="flex gap-3">
+              <Button 
+                variant="outline" 
+                onClick={handleCancelEdit}
+                disabled={isSaving}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSaveProfile}
+                disabled={isSaving}
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Check className="mr-2 h-4 w-4" />
+                    Save Changes
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
