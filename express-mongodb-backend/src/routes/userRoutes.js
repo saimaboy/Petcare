@@ -46,6 +46,18 @@ const upload = multer({
   }
 });
 
+// Get all veterinarians and pharmacies (public endpoint)
+router.get('/vets-and-pharmacies', async (req, res) => {
+  try {
+    const users = await User.find({
+      role: { $in: ['veterinarian', 'pharmacy'] }
+    }).select('-password'); // Exclude password field
+    res.json({ success: true, data: users });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Simple auth middleware
 const simpleAuth = (req, res, next) => {
   // ... existing code ...
@@ -79,85 +91,37 @@ router.delete('/:id', (req, res) => {
   // ... existing code ...
 });
 
-// Upload profile image - use simpleAuth instead of protect
-router.post('/profile-image', simpleAuth, upload.single('profileImage'), async (req, res) => {
+router.get('/vets-and-pharmacies', async (req, res) => {
   try {
-    // Check if authenticated
-    if (!req.isAuthenticated) {
-      return res.status(401).json({
-        success: false,
-        error: 'Authentication required'
-      });
-    }
-    
-    if (!req.file) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'No file uploaded' 
-      });
-    }
-    
-    const user = await User.findById(req.userId);
-    
-    if (!user) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'User not found' 
-      });
-    }
-    
-    // Update user profile image
-    user.profileImage = `/uploads/${req.file.filename}`;
-    await user.save();
-    
-    return res.status(200).json({
-      success: true,
-      profileImage: user.profileImage
-    });
+    const users = await User.find({
+      role: { $in: ['veterinarian', 'pharmacy', 'pharmacist','service_provider']}
+    }).select('-password'); 
+    res.json({ success: true, data: users });
   } catch (error) {
-    console.error('Error uploading profile image:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Server error'
-    });
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// Delete profile image - use simpleAuth instead of protect
-router.delete('/profile-image', simpleAuth, async (req, res) => {
+router.post('/profile-image/:id', upload.single('profileImage'), async (req, res) => {
   try {
-    // Check if authenticated
-    if (!req.isAuthenticated) {
-      return res.status(401).json({
-        success: false,
-        error: 'Authentication required'
-      });
+    const userId = req.params.id;
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'No file uploaded' });
     }
-    
-    const user = await User.findById(req.userId);
-    
+
+    const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'User not found' 
-      });
+      return res.status(404).json({ success: false, error: 'User not found' });
     }
-    
-    // Remove profile image
-    user.profileImage = null;
+
+    user.profileImage = `/uploads/${req.file.filename}`;
     await user.save();
-    
-    return res.status(200).json({
-      success: true,
-      message: 'Profile image removed successfully'
-    });
+
+    res.json({ success: true, profileImage: user.profileImage });
   } catch (error) {
-    console.error('Error removing profile image:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Server error'
-    });
+    res.status(500).json({ success: false, error: error.message });
   }
 });
+
 
 module.exports = router;

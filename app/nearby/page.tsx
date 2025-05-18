@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -8,79 +8,96 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { MapPin, Phone, Clock, ExternalLink } from "lucide-react"
 
-// Mock data for nearby services
-const services = [
-  {
-    id: 1,
-    name: "City Pet Hospital",
-    type: "Hospital",
-    address: "123 Main St, City",
-    phone: "+1 (555) 123-4567",
-    hours: "24/7 Emergency Services",
-    distance: "0.8 miles",
-    image: "/placeholder.svg?height=200&width=300",
-    website: "https://content3.jdmagicbox.com/comp/kota-rajasthan/a1/9999px744.x744.220318203038.f1a1/catalogue/city-pet-hospital-station-road-kota-rajasthan-hospitals-t3gwp1jo6i.jpg",
-    lat: 40.7128,
-    lng: -74.006,
-  },
-  {
-    id: 2,
-    name: "PetMeds Pharmacy",
-    type: "Pharmacy",
-    address: "456 Oak Ave, City",
-    phone: "+1 (555) 987-6543",
-    hours: "Mon-Sat: 9AM-9PM, Sun: 10AM-6PM",
-    distance: "1.2 miles",
-    image: "/placeholder.svg?height=200&width=300",
-    website: "https://petphoto.1800petmeds.com/images/meta-image-revised2.png",
-    lat: 40.7138,
-    lng: -74.008,
-  },
-  {
-    id: 3,
-    name: "Animal Emergency Center",
-    type: "Hospital",
-    address: "789 Pine Rd, City",
-    phone: "+1 (555) 456-7890",
-    hours: "24/7 Emergency Services",
-    distance: "2.5 miles",
-    image: "/placeholder.svg?height=200&width=300",
-    website: "https://okcanimalemergency.com/wp-content/uploads/2022/09/AnimalEmergencyFinal.png",
-    lat: 40.7148,
-    lng: -74.003,
-  },
-  {
-    id: 4,
-    name: "Pet Wellness Pharmacy",
-    type: "Pharmacy",
-    address: "321 Elm St, City",
-    phone: "+1 (555) 234-5678",
-    hours: "Mon-Fri: 8AM-8PM, Sat-Sun: 9AM-6PM",
-    distance: "3.1 miles",
-    image: "/placeholder.svg?height=200&width=300",
-    website: "https://www.animalwellness.com/sites/site-3490/images/Shop_Now_Button_6.png",
-    lat: 40.7118,
-    lng: -74.009,
-  },
-]
-
 export default function NearbyServices() {
+  const [services, setServices] = useState([])
   const [searchTerm, setSearchTerm] = useState("")
   const [serviceType, setServiceType] = useState("all")
   const [userLocation, setUserLocation] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [activeService, setActiveService] = useState(null)
+  const [mapLoaded, setMapLoaded] = useState(false)
 
+  const mapRef = useRef(null)
+  const googleMapRef = useRef(null)
+  const markersRef = useRef([])
+
+  // Fetch services from API
   useEffect(() => {
-    // Get user's location
+    setIsLoading(true)
+    fetch('http://localhost:5000/api/users/vets-and-pharmacies')
+      .then(res => res.json())
+      .then(data => {
+        const formattedServices = (data.data || []).map(service => ({
+          ...service,
+          type: service.role === "veterinarian" ? "Veterinarian" : "Pharmacy",
+          distance: "Calculating...",
+          lat: service.location?.coordinates?.[1] || service.latitude,
+          lng: service.location?.coordinates?.[0] || service.longitude,
+          hours: service.operatingHours || "Not specified",
+          image: service.image || "/placeholder.svg?height=200&width=300",
+        }))
+        setServices(formattedServices)
+        setIsLoading(false)
+      })
+      .catch(() => {
+        setError("Failed to fetch services.")
+        setIsLoading(false)
+      })
+  }, [])
+
+  // Load Google Maps API
+  useEffect(() => {
+    if (!window.google && !document.querySelector('script[src*="maps.googleapis.com/maps/api"]')) {
+      const googleMapScript = document.createElement("script")
+      googleMapScript.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyCjjuJkNoQp-ozJZWVnjzrByN_pz-drwho&libraries=places`
+      googleMapScript.async = true
+      googleMapScript.defer = true
+
+      googleMapScript.addEventListener("load", () => {
+        setMapLoaded(true)
+      })
+
+      googleMapScript.addEventListener("error", () => {
+        setError("Failed to load Google Maps. Please try again later.")
+        setIsLoading(false)
+      })
+
+      document.body.appendChild(googleMapScript)
+    } else if (window.google) {
+      setMapLoaded(true)
+    }
+  }, [])
+
+  // Get user's location and calculate distances
+  useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          setUserLocation({
+          const userLoc = {
             lat: position.coords.latitude,
             lng: position.coords.longitude,
-          })
-          setIsLoading(false)
+          }
+          setUserLocation(userLoc)
+
+          // Calculate distances to each service once we have user location
+          setServices(prevServices =>
+            prevServices.map(service => {
+              if (service.lat && service.lng) {
+                const distance = calculateDistance(
+                  userLoc.lat,
+                  userLoc.lng,
+                  service.lat,
+                  service.lng
+                )
+                return {
+                  ...service,
+                  distance: `${distance.toFixed(1)} miles`
+                }
+              }
+              return service
+            })
+          )
         },
         (error) => {
           console.error("Error getting location:", error)
@@ -92,15 +109,177 @@ export default function NearbyServices() {
       setError("Geolocation is not supported by your browser.")
       setIsLoading(false)
     }
+    // eslint-disable-next-line
   }, [])
 
+  // Calculate distance between two points using Haversine formula
+  const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 3958.8 // Radius of the Earth in miles
+    const dLat = (lat2 - lat1) * Math.PI / 180
+    const dLon = (lon2 - lon1) * Math.PI / 180
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    const distance = R * c
+    return distance
+  }
+
+  // Initialize map when Google Maps is loaded and user location is available
+  useEffect(() => {
+    if (mapLoaded && userLocation && mapRef.current) {
+      initMap()
+    }
+    // eslint-disable-next-line
+  }, [mapLoaded, userLocation, mapRef.current, services, serviceType, searchTerm])
+
+  // Initialize Google Map
+  const initMap = () => {
+    const mapOptions = {
+      center: userLocation,
+      zoom: 13,
+      mapTypeControl: false,
+      streetViewControl: false,
+      fullscreenControl: false,
+    }
+
+    const map = new window.google.maps.Map(mapRef.current, mapOptions)
+    googleMapRef.current = map
+
+    // Add user location marker
+    new window.google.maps.Marker({
+      position: userLocation,
+      map: map,
+      icon: {
+        path: window.google.maps.SymbolPath.CIRCLE,
+        scale: 10,
+        fillColor: "#4F46E5",
+        fillOpacity: 0.7,
+        strokeWeight: 2,
+        strokeColor: "#FFFFFF",
+      },
+      title: "Your Location",
+    })
+
+    // Add markers for services
+    addServiceMarkers(map)
+  }
+
+  // Add markers for services
+  const addServiceMarkers = (map) => {
+    // Clear existing markers
+    markersRef.current.forEach(marker => marker.setMap(null))
+    markersRef.current = []
+
+    // Filter services
+    const servicesToShow = filteredServices
+
+    // Add markers for filtered services
+    servicesToShow.forEach((service) => {
+      if (!service.lat || !service.lng) return
+      const markerIcon = {
+        url: service.type === "Veterinarian"
+          ? "https://maps.google.com/mapfiles/ms/icons/red-dot.png"
+          : "https://maps.google.com/mapfiles/ms/icons/blue-dot.png",
+        scaledSize: new window.google.maps.Size(32, 32),
+      }
+
+      const marker = new window.google.maps.Marker({
+        position: { lat: service.lat, lng: service.lng },
+        map: map,
+        icon: markerIcon,
+        title: service.name,
+        animation: window.google.maps.Animation.DROP,
+      })
+
+      // Info window content
+      const addressString = typeof service.address === "object"
+        ? [service.address.street, service.address.city, service.address.state, service.address.zipCode, service.address.country]
+            .filter(Boolean)
+            .join(", ")
+        : service.address || "N/A"
+
+      const infoWindowContent = `
+        <div style="width: 250px; padding: 10px;">
+          <h3 style="margin-top: 0; font-weight: bold;">${service.name}</h3>
+          <p style="margin: 5px 0; color: #666;">${service.type} · ${service.distance}</p>
+          <p style="margin: 5px 0;"><strong>Address:</strong> ${addressString}</p>
+          <p style="margin: 5px 0;"><strong>Phone:</strong> ${service.phone || "N/A"}</p>
+          <div style="margin-top: 10px;">
+            <button 
+              style="background: #4F46E5; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; margin-right: 5px;"
+              onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${service.lat},${service.lng}', '_blank')"
+            >
+              Get Directions
+            </button>
+            <button 
+              style="background: white; color: #4F46E5; border: 1px solid #4F46E5; padding: 6px 12px; border-radius: 4px; cursor: pointer;"
+              onclick="window.open('tel:${service.phone?.replace(/\D/g, '')}', '_self')"
+            >
+              Call
+            </button>
+          </div>
+        </div>
+      `
+
+      const infoWindow = new window.google.maps.InfoWindow({
+        content: infoWindowContent,
+      })
+
+      marker.addListener("click", () => {
+        if (activeService) {
+          activeService.close()
+        }
+        infoWindow.open(map, marker)
+        setActiveService(infoWindow)
+      })
+
+      markersRef.current.push(marker)
+    })
+
+    // Adjust map bounds to fit all markers if we have services
+    if (servicesToShow.length > 0) {
+      const bounds = new window.google.maps.LatLngBounds()
+      bounds.extend(userLocation)
+      servicesToShow.forEach(service => {
+        if (service.lat && service.lng) {
+          bounds.extend({ lat: service.lat, lng: service.lng })
+        }
+      })
+      map.fitBounds(bounds)
+      const listener = window.google.maps.event.addListener(map, "idle", () => {
+        if (map.getZoom() > 16) map.setZoom(16)
+        window.google.maps.event.removeListener(listener)
+      })
+    }
+  }
+
+  // Filtering logic
   const filteredServices = services.filter((service) => {
+    const name = service.name || service.businessName || ""
+    const address = typeof service.address === "object"
+      ? [service.address.street, service.address.city, service.address.state, service.address.zipCode, service.address.country]
+          .filter(Boolean)
+          .join(", ")
+      : service.address || ""
     const matchesSearch =
-      service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      service.address.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesType = serviceType === "all" || service.type.toLowerCase() === serviceType.toLowerCase()
+      name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      address.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesType =
+      serviceType === "all" ||
+      (serviceType === "veterinarian" && service.type === "Veterinarian") ||
+      (serviceType === "pharmacy" && service.type === "Pharmacy")
     return matchesSearch && matchesType
   })
+
+  // Update markers when filters change
+  useEffect(() => {
+    if (googleMapRef.current) {
+      addServiceMarkers(googleMapRef.current)
+    }
+    // eslint-disable-next-line
+  }, [searchTerm, serviceType, services])
 
   return (
     <div className="container py-8">
@@ -140,11 +319,11 @@ export default function NearbyServices() {
                         All
                       </Button>
                       <Button
-                        variant={serviceType === "hospital" ? "default" : "outline"}
+                        variant={serviceType === "veterinarian" ? "default" : "outline"}
                         size="sm"
-                        onClick={() => setServiceType("hospital")}
+                        onClick={() => setServiceType("veterinarian")}
                       >
-                        Hospitals
+                        Veterinarians
                       </Button>
                       <Button
                         variant={serviceType === "pharmacy" ? "default" : "outline"}
@@ -174,7 +353,7 @@ export default function NearbyServices() {
                   </Card>
                 ) : filteredServices.length > 0 ? (
                   filteredServices.map((service) => (
-                    <Card key={service.id} className="overflow-hidden">
+                    <Card key={service.id || service._id} className="overflow-hidden">
                       <div className="flex flex-col md:flex-row">
                         <div className="md:w-1/3">
                           <img
@@ -198,7 +377,11 @@ export default function NearbyServices() {
                           <CardContent className="p-0 pb-2">
                             <div className="flex items-center text-sm text-muted-foreground mb-2">
                               <MapPin className="h-4 w-4 mr-1" />
-                              {service.address}
+                              {typeof service.address === "object"
+                                ? [service.address.street, service.address.city, service.address.state, service.address.zipCode, service.address.country]
+                                    .filter(Boolean)
+                                    .join(", ")
+                                : service.address || "N/A"}
                             </div>
                             <div className="flex items-center text-sm text-muted-foreground mb-2">
                               <Phone className="h-4 w-4 mr-1" />
@@ -210,16 +393,27 @@ export default function NearbyServices() {
                             </div>
                           </CardContent>
                           <CardFooter className="p-0 pt-2 flex gap-2">
-                            <Button variant="outline" size="sm">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${service.lat},${service.lng}`, '_blank')}
+                            >
                               Get Directions
                             </Button>
-                            <Button size="sm">Call Now</Button>
-                            <Button variant="ghost" size="sm" className="ml-auto" asChild>
-                              <a href={service.website} target="_blank" rel="noopener noreferrer">
-                                <ExternalLink className="h-4 w-4 mr-1" />
-                                Website
-                              </a>
+                            <Button
+                              size="sm"
+                              onClick={() => window.open(`tel:${service.phone?.replace(/\D/g, '')}`, '_self')}
+                            >
+                              Call Now
                             </Button>
+                            {service.website && (
+                              <Button variant="ghost" size="sm" className="ml-auto" asChild>
+                                <a href={service.website} target="_blank" rel="noopener noreferrer">
+                                  <ExternalLink className="h-4 w-4 mr-1" />
+                                  Website
+                                </a>
+                              </Button>
+                            )}
                           </CardFooter>
                         </div>
                       </div>
@@ -234,33 +428,89 @@ export default function NearbyServices() {
             </div>
           </TabsContent>
           <TabsContent value="map" className="mt-4">
-            <Card>
-              <CardContent className="p-6">
-                <div className="aspect-video bg-muted rounded-md flex items-center justify-center">
+            <div className="grid gap-6 md:grid-cols-[1fr_3fr]">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Search Filters</CardTitle>
+                  <CardDescription>Find services near you</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="map-search">Search</Label>
+                    <Input
+                      id="map-search"
+                      placeholder="Search by name or location"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="map-type">Service Type</Label>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant={serviceType === "all" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setServiceType("all")}
+                      >
+                        All
+                      </Button>
+                      <Button
+                        variant={serviceType === "veterinarian" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setServiceType("veterinarian")}
+                      >
+                        Veterinarians
+                      </Button>
+                      <Button
+                        variant={serviceType === "pharmacy" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setServiceType("pharmacy")}
+                      >
+                        Pharmacies
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+                <CardFooter>
+                  <div className="text-xs text-muted-foreground">
+                    <p>🔴 Veterinarian</p>
+                    <p>🔵 Pharmacy</p>
+                    <p>🟣 Your Location</p>
+                  </div>
+                </CardFooter>
+              </Card>
+
+              <Card>
+                <CardContent className="p-6">
                   {isLoading ? (
-                    <p className="text-muted-foreground">Loading map...</p>
+                    <div className="text-center p-8">
+                      <p className="text-muted-foreground">Loading map...</p>
+                    </div>
                   ) : error ? (
                     <div className="text-center">
                       <p className="text-red-500 mb-4">{error}</p>
                       <Button onClick={() => window.location.reload()}>Try Again</Button>
                     </div>
                   ) : (
-                    <div className="text-center">
-                      <p className="text-muted-foreground mb-4">
-                        Map view would display here with markers for each service.
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        In a production environment, this would integrate with Google Maps or a similar mapping service.
-                      </p>
+                    <div className="w-full">
+                      <div
+                        ref={mapRef}
+                        className="w-full h-96 rounded-md overflow-hidden"
+                        style={{ minHeight: "500px" }}
+                      ></div>
+                      {filteredServices.length === 0 && (
+                        <div className="text-center mt-4">
+                          <p className="text-muted-foreground">No services found matching your criteria.</p>
+                        </div>
+                      )}
                     </div>
                   )}
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
         </Tabs>
       </div>
     </div>
   )
 }
-
