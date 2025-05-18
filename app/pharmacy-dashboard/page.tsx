@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { 
-  Pencil, Trash2, Plus, Search, Package, FilterX, LogOut, Loader2, AlertCircle 
+  Pencil, Trash2, Plus, Search, Package, FilterX, LogOut, Loader2, AlertCircle, CheckCircle, XCircle 
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -38,20 +38,19 @@ export default function PharmacyDashboard() {
   const [activeTab, setActiveTab] = useState("products");
   const [pharmData, setPharmData] = useState(null);
   const [products, setProducts] = useState([]);
+  const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState("all");
 
-  // Add product states
-  const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const fileInputRef = useRef(null);
 
-  // Edit product states
-  const [editSelectedImage, setEditSelectedImage] = useState<File | null>(null);
-  const [editImagePreview, setEditImagePreview] = useState<string | null>(null);
-  const editFileInputRef = useRef<HTMLInputElement>(null);
+  const [editSelectedImage, setEditSelectedImage] = useState(null);
+  const [editImagePreview, setEditImagePreview] = useState(null);
+  const editFileInputRef = useRef(null);
 
   const [newProduct, setNewProduct] = useState({
     name: "",
@@ -69,7 +68,6 @@ export default function PharmacyDashboard() {
   const [productToDelete, setProductToDelete] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Fetch pharmacy data and products
   const fetchProductsAndProfile = async () => {
     try {
       setIsLoading(true);
@@ -79,7 +77,6 @@ export default function PharmacyDashboard() {
         return;
       }
 
-      // Fetch pharmacy profile data
       const profileResponse = await fetch(`${API_URL}/auth/me`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -107,7 +104,6 @@ export default function PharmacyDashboard() {
 
       setPharmData(profileData.data);
 
-      // Fetch pharmacy products
       const productsResponse = await fetch(`${API_URL}/products/pharmacy`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -121,6 +117,24 @@ export default function PharmacyDashboard() {
 
       const productsData = await productsResponse.json();
       setProducts(productsData.data || []);
+
+      // Fetch all orders for pharmacist
+      const ordersResponse = await fetch(`${API_URL}/orders`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!ordersResponse.ok) {
+        const errorText = await ordersResponse.text();
+        console.error("Orders fetch failed:", ordersResponse.status, errorText);
+        throw new Error(`Failed to fetch orders: ${ordersResponse.statusText}`);
+      }
+
+      const ordersData = await ordersResponse.json();
+      console.log("Orders fetched:", ordersData);
+      setOrders(ordersData.orders || []);
     } catch (error) {
       console.error("Error fetching data:", error);
       setError(error.message || "Failed to load dashboard data. Please try again later.");
@@ -131,17 +145,14 @@ export default function PharmacyDashboard() {
 
   useEffect(() => {
     fetchProductsAndProfile();
-    // eslint-disable-next-line
   }, [router]);
 
-  // Handle logout
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('userId');
     router.push('/login');
   };
 
-  // When opening edit dialog, reset image preview
   useEffect(() => {
     if (isEditDialogOpen && editingProduct) {
       setEditImagePreview(editingProduct.image || null);
@@ -150,7 +161,6 @@ export default function PharmacyDashboard() {
     }
   }, [isEditDialogOpen, editingProduct]);
 
-  // Filter products based on search term and category
   const filteredProducts = products.filter((product) => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       product.description.toLowerCase().includes(searchTerm.toLowerCase());
@@ -162,13 +172,11 @@ export default function PharmacyDashboard() {
     }
   });
 
-  // Reset search and filters
   const resetFilters = () => {
     setSearchTerm("");
     setFilterCategory("all");
   };
 
-  // Handle input change for new product form
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setNewProduct({
@@ -177,7 +185,7 @@ export default function PharmacyDashboard() {
     });
   };
 
-  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageFileChange = (e) => {
     const file = e.target.files?.[0];
     if (file) {
       setSelectedImage(file);
@@ -185,7 +193,6 @@ export default function PharmacyDashboard() {
     }
   };
 
-  // Handle select change for category
   const handleCategoryChange = (category) => {
     setNewProduct({
       ...newProduct,
@@ -193,8 +200,7 @@ export default function PharmacyDashboard() {
     });
   };
 
-  // Edit image file change
-  const handleEditImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleEditImageFileChange = (e) => {
     const file = e.target.files?.[0];
     if (file) {
       setEditSelectedImage(file);
@@ -202,7 +208,6 @@ export default function PharmacyDashboard() {
     }
   };
 
-  // Handle edit category change
   const handleEditCategoryChange = (category) => {
     setEditingProduct({
       ...editingProduct,
@@ -210,7 +215,6 @@ export default function PharmacyDashboard() {
     });
   };
 
-  // Handle edit input change
   const handleEditChange = (e) => {
     const { name, value } = e.target;
     setEditingProduct({
@@ -219,7 +223,6 @@ export default function PharmacyDashboard() {
     });
   };
 
-  // Add a new product
   const handleAddProduct = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -240,7 +243,6 @@ export default function PharmacyDashboard() {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
-          // Do NOT set Content-Type for FormData!
         },
         body: formData
       });
@@ -263,7 +265,6 @@ export default function PharmacyDashboard() {
       setImagePreview(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       setIsAddDialogOpen(false);
-
     } catch (error) {
       console.error("Error adding product:", error);
       setError(`Failed to add product: ${error.message}`);
@@ -272,7 +273,6 @@ export default function PharmacyDashboard() {
     }
   };
 
-  // Edit an existing product (with image support)
   const handleEditProduct = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -293,7 +293,6 @@ export default function PharmacyDashboard() {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
-          // Do NOT set Content-Type for FormData!
         },
         body: formData
       });
@@ -302,15 +301,12 @@ export default function PharmacyDashboard() {
         throw new Error(`Failed to update product: ${response.statusText}`);
       }
 
-      // Re-fetch products after editing
       await fetchProductsAndProfile();
 
-      // Reset form and close dialog
       setEditingProduct(null);
       setIsEditDialogOpen(false);
       setEditSelectedImage(null);
       setEditImagePreview(null);
-
     } catch (error) {
       console.error("Error updating product:", error);
       setError(`Failed to update product: ${error.message}`);
@@ -319,7 +315,6 @@ export default function PharmacyDashboard() {
     }
   };
 
-  // Delete a product
   const handleDeleteProduct = async () => {
     setIsSubmitting(true);
 
@@ -338,13 +333,10 @@ export default function PharmacyDashboard() {
         throw new Error(`Failed to delete product: ${response.statusText}`);
       }
 
-      // Re-fetch products after deleting
       await fetchProductsAndProfile();
 
-      // Reset and close dialog
       setProductToDelete(null);
       setIsDeleteDialogOpen(false);
-
     } catch (error) {
       console.error("Error deleting product:", error);
       setError(`Failed to delete product: ${error.message}`);
@@ -353,7 +345,63 @@ export default function PharmacyDashboard() {
     }
   };
 
-  // Format currency
+  const handleConfirmOrder = async (orderId) => {
+    setIsSubmitting(true);
+    try {
+      console.log("Confirming order with ID:", orderId);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_URL}/orders/${orderId}/confirm`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ status: 'delivering' })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Confirm order failed:", response.status, errorText);
+        throw new Error(`Failed to confirm order: ${response.statusText}`);
+      }
+
+      await fetchProductsAndProfile();
+    } catch (error) {
+      console.error("Error confirming order:", error);
+      setError(`Failed to confirm order: ${error.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeclineOrder = async (orderId) => {
+    setIsSubmitting(true);
+    try {
+      console.log("Declining order with ID:", orderId);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_URL}/orders/${orderId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Decline order failed:", response.status, errorText);
+        throw new Error(`Failed to decline order: ${response.statusText}`);
+      }
+
+      await fetchProductsAndProfile();
+    } catch (error) {
+      console.error("Error declining order:", error);
+      setError(`Failed to decline order: ${error.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -361,7 +409,6 @@ export default function PharmacyDashboard() {
     }).format(amount);
   };
 
-  // Loading state
   if (isLoading) {
     return (
       <div className="container mx-auto py-16 flex justify-center items-center min-h-[400px]">
@@ -373,7 +420,6 @@ export default function PharmacyDashboard() {
     );
   }
 
-  // Error state
   if (error) {
     return (
       <div className="container mx-auto py-16">
@@ -406,8 +452,9 @@ export default function PharmacyDashboard() {
       </div>
       
       <Tabs defaultValue="products" value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid grid-cols-2 mb-6">
+        <TabsList className="grid grid-cols-3 mb-6">
           <TabsTrigger value="products">Products</TabsTrigger>
+          <TabsTrigger value="orders">Orders</TabsTrigger>
           <TabsTrigger value="profile">Profile</TabsTrigger>
         </TabsList>
         
@@ -538,6 +585,78 @@ export default function PharmacyDashboard() {
           </Card>
         </TabsContent>
         
+        <TabsContent value="orders">
+          <Card>
+            <CardHeader>
+              <CardTitle>Order Management</CardTitle>
+              <CardDescription>View and manage customer orders</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {orders.length === 0 ? (
+                <div className="text-center py-12">
+                  <Package className="h-12 w-12 mx-auto text-muted-foreground" />
+                  <p className="mt-4 text-lg font-medium">No orders found</p>
+                  <p className="text-muted-foreground">
+                    There are currently no orders to manage.
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Order ID</TableHead>
+                        <TableHead>Customer</TableHead>
+                        <TableHead>Total</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {orders.map((order) => (
+                        <TableRow key={order._id}>
+                          <TableCell>{order._id}</TableCell>
+                          <TableCell>{order.userId?.name || order.userId}</TableCell>
+                          <TableCell>{formatCurrency(order.total)}</TableCell>
+                          <TableCell>
+                            <Badge variant={order.status === "delivering" ? "default" : "secondary"}>
+                              {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {new Date(order.createdAt).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex space-x-2">
+                              <Button
+                                size="sm"
+                                variant="default"
+                                onClick={() => handleConfirmOrder(order._id)}
+                                disabled={isSubmitting || order.status !== "pending"}
+                              >
+                                <CheckCircle className="h-4 w-4 mr-1" /> Confirm
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => handleDeclineOrder(order._id)}
+                                disabled={isSubmitting || order.status !== "pending"}
+                              >
+                                <XCircle className="h-4 w-4 mr-1" /> Decline
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
         <TabsContent value="profile">
           <Card>
             <CardHeader>
@@ -606,7 +725,6 @@ export default function PharmacyDashboard() {
         </TabsContent>
       </Tabs>
       
-      {/* Add Product Dialog */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
         <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -724,7 +842,6 @@ export default function PharmacyDashboard() {
         </DialogContent>
       </Dialog>
       
-      {/* Edit Product Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -839,7 +956,6 @@ export default function PharmacyDashboard() {
         </DialogContent>
       </Dialog>
       
-      {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
