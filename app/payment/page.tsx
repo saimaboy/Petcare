@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -22,7 +22,38 @@ export default function PaymentPage() {
     cardHolder: "",
   })
   const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState(null)
+  const [userId, setUserId] = useState(null)
+
+  // Fetch authenticated user ID
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const token = localStorage.getItem('token') // Adjust based on how you store the JWT token
+        if (!token) {
+          setError("Please log in to proceed with payment")
+          return
+        }
+        const res = await fetch(`${API_URL}/auth/me`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+        if (!res.ok) {
+          throw new Error("Failed to fetch user data")
+        }
+        const data = await res.json()
+        if (data.success) {
+          setUserId(data.data.id)
+        } else {
+          throw new Error(data.error || "Failed to fetch user data")
+        }
+      } catch (err) {
+        setError(err.message || "Failed to authenticate user")
+      }
+    }
+    fetchUser()
+  }, [])
 
   // Calculate totals
   const shipping = 9.99
@@ -30,7 +61,7 @@ export default function PaymentPage() {
   const tax = subtotal * 0.07 // 7% tax rate
   const total = subtotal + shipping + tax
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e) => {
     const { name, value } = e.target
     setCardDetails((prev) => ({ ...prev, [name]: value }))
   }
@@ -41,6 +72,7 @@ export default function PaymentPage() {
     if (!expiry || !/^\d{2}\/\d{2}$/.test(expiry)) return "Invalid expiry date (MM/YY)"
     if (!cvv || cvv.length < 3) return "Invalid CVV"
     if (!cardHolder) return "Cardholder name is required"
+    if (!userId) return "User authentication required"
     return null
   }
 
@@ -73,15 +105,19 @@ export default function PaymentPage() {
         shipping,
         tax,
         total,
-        status: "completed",
+        status: "pending",
         createdAt: new Date().toISOString(),
-        // Add userId if authentication is implemented
+        userId, // Include authenticated user ID
       }
 
       // Save order to database
+      const token = localStorage.getItem('token') // Adjust based on how you store the JWT token
       const res = await fetch(`${API_URL}/orders`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`, // Include token for protected route
+        },
         body: JSON.stringify(orderData),
       })
 
@@ -90,7 +126,7 @@ export default function PaymentPage() {
       // Clear cart and redirect to success page
       clearCart()
       router.push("/payment/success")
-    } catch (err: any) {
+    } catch (err) {
       setError(err.message || "Payment processing failed")
     } finally {
       setIsLoading(false)
@@ -200,11 +236,12 @@ export default function PaymentPage() {
                 <span>${total.toFixed(2)}</span>
               </div>
             </CardContent>
+      
               <Button
                 className="w-full"
                 size="lg"
                 onClick={handlePayment}
-                disabled={isLoading || cartItems.length === 0}
+                disabled={isLoading || cartItems.length === 0 || !userId}
               >
                 {isLoading ? (
                   <>
@@ -215,7 +252,6 @@ export default function PaymentPage() {
                   "Pay Now"
                 )}
               </Button>
-    
           </Card>
         </div>
       </div>

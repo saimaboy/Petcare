@@ -16,8 +16,7 @@ const orderSchema = new mongoose.Schema({
   total: { type: Number, required: true },
   status: { type: String, enum: ["pending", "completed", "cancelled"], default: "pending" },
   createdAt: { type: Date, default: Date.now },
-  // Add userId if authentication is implemented
-  // userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
 });
 
 module.exports = mongoose.model("Order", orderSchema);
