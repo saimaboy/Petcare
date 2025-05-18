@@ -5,7 +5,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { BookOpen, Cat, Dog, Rabbit, Bird, Fish } from "lucide-react"
+import { BookOpen, Cat, Dog, Rabbit, Bird, Fish, ArrowLeft } from "lucide-react"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
 
@@ -22,6 +22,8 @@ export default function KnowledgeHub() {
   const [articles, setArticles] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [selectedArticle, setSelectedArticle] = useState<any | null>(null)
+  const [activeTab, setActiveTab] = useState("all")
 
   useEffect(() => {
     const fetchArticles = async () => {
@@ -41,6 +43,42 @@ export default function KnowledgeHub() {
     fetchArticles()
   }, [])
 
+  // Show full article if selected
+  if (selectedArticle) {
+    return (
+      <div className="container py-8 max-w-2xl mx-auto">
+        <Button variant="ghost" className="mb-4 flex items-center gap-2" onClick={() => setSelectedArticle(null)}>
+          <ArrowLeft className="h-4 w-4" /> Back to Articles
+        </Button>
+        <Card className="overflow-hidden">
+          <div className="aspect-video relative">
+            <img
+              src={selectedArticle.image || "/placeholder.svg"}
+              alt={selectedArticle.title}
+              className="object-cover w-full h-full"
+            />
+            <div className="absolute top-2 right-2 bg-primary text-primary-foreground text-xs px-2 py-1 rounded">
+              {selectedArticle.category}
+            </div>
+          </div>
+          <CardHeader>
+            <CardTitle>{selectedArticle.title}</CardTitle>
+            <CardDescription>
+              {selectedArticle.date
+                ? new Date(selectedArticle.date).toLocaleDateString()
+                : ""}
+              {selectedArticle.readTime ? ` · ${selectedArticle.readTime}` : ""}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground mb-4">{selectedArticle.excerpt}</p>
+            <div className="prose max-w-none" dangerouslySetInnerHTML={{ __html: selectedArticle.content || "" }} />
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div className="container py-8">
       <div className="flex flex-col items-center justify-center space-y-4 text-center mb-8">
@@ -52,7 +90,7 @@ export default function KnowledgeHub() {
         </div>
       </div>
 
-      <Tabs defaultValue="all" className="w-full">
+      <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="flex justify-center mb-6">
           <TabsList className="grid grid-cols-3 md:grid-cols-6 gap-2">
             {CATEGORY_MAP.map(({ value, label, icon: Icon }) => (
@@ -104,8 +142,8 @@ export default function KnowledgeHub() {
                         <p className="text-muted-foreground">{article.excerpt}</p>
                       </CardContent>
                       <CardFooter>
-                        <Button variant="outline" className="w-full" asChild>
-                          <Link href={`/knowledge-hub/article/${article._id}`}>Read Article</Link>
+                        <Button variant="outline" className="w-full" onClick={() => setSelectedArticle(article)}>
+                          Read Article
                         </Button>
                       </CardFooter>
                     </Card>

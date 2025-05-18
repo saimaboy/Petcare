@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar, Clock, Users, User, Settings, Plus, ArrowRight, CheckCircle, AlertCircle, Loader2, BookOpen } from "lucide-react";
+import { Calendar, Clock, Users, Settings, Plus, ArrowRight, CheckCircle, AlertCircle, Loader2, BookOpen } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 
@@ -19,22 +19,12 @@ export default function VetDashboard() {
   const [vetData, setVetData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-const [selectedImage, setSelectedImage] = useState<File | null>(null);
-const [imagePreview, setImagePreview] = useState<string | null>(null);
-const [upcomingAppointments, setUpcomingAppointments] = useState<any[]>([]);
-const [appointmentsLoading, setAppointmentsLoading] = useState(true);
-const [appointmentsError, setAppointmentsError] = useState<string | null>(null);
-const [profilePic, setProfilePic] = useState<string | null>(null);
-const [profilePicFile, setProfilePicFile] = useState<File | null>(null);
-const [isUploadingProfilePic, setIsUploadingProfilePic] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [upcomingAppointments, setUpcomingAppointments] = useState<any[]>([]);
+  const [appointmentsLoading, setAppointmentsLoading] = useState(true);
+  const [appointmentsError, setAppointmentsError] = useState<string | null>(null);
 
-const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  const file = e.target.files?.[0];
-  if (file) {
-    setSelectedImage(file);
-    setImagePreview(URL.createObjectURL(file));
-  }
-};
   // Article state
   const [showArticleForm, setShowArticleForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -47,8 +37,6 @@ const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     content: "",
     image: ""
   });
-
-  // Placeholder data for dashboard
 
   const recentPatients = [
     { id: "101", name: "Max", species: "Dog", breed: "Golden Retriever", age: "4 years", owner: "John Doe", lastVisit: "Today" },
@@ -97,78 +85,97 @@ const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     fetchVetData();
   }, [router]);
 
-  const fetchMyArticles = async (token: string, vetId: string) => {
-    try {
-      const res = await fetch(`${API_URL}/articles`);
-      const data = await res.json();
-      // Only show articles authored by this vet
-      setMyArticles((data.data || []).filter((a: any) => a.author === vetId));
-    } catch {
-      setMyArticles([]);
-    }
-  };
-
-  useEffect(() => {
-  const fetchAppointments = async () => {
-    setAppointmentsLoading(true);
-    setAppointmentsError(null);
-    try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`${API_URL}/appointments/vet`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!res.ok) throw new Error("Failed to fetch appointments");
-      const data = await res.json();
-      // Optionally filter for today/tomorrow here if your backend doesn't do it
-      setUpcomingAppointments(data.data || []);
-    } catch (err: any) {
-      setAppointmentsError(err.message || "Failed to load appointments");
-    } finally {
-      setAppointmentsLoading(false);
-    }
-  };
-  fetchAppointments();
-}, []);
-
-  // Article form handlers
-const handleAddArticle = async (e: any) => {
-  e.preventDefault();
-  setIsSubmitting(true);
-  setArticleError(null);
+const fetchMyArticles = async (token: string, vetId: string) => {
   try {
-    const token = localStorage.getItem('token');
-    const formData = new FormData();
-    formData.append("title", newArticle.title);
-    formData.append("category", newArticle.category);
-    formData.append("excerpt", newArticle.excerpt);
-    formData.append("content", newArticle.content);
-    if (selectedImage) {
-      formData.append("image", selectedImage);
-    }
-
-    const res = await fetch(`${API_URL}/articles`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${token}`,
-        // Do NOT set Content-Type for FormData!
-      },
-      body: formData
-    });
-    if (!res.ok) throw new Error("Failed to add article");
+    const res = await fetch(`${API_URL}/articles`);
     const data = await res.json();
-    setMyArticles([data.data, ...myArticles]);
-    setShowArticleForm(false);
-    setNewArticle({ title: "", category: "", excerpt: "", content: "", image: "" });
-    setSelectedImage(null);
-    setImagePreview(null);
-  } catch (err: any) {
-    setArticleError(err.message || "Failed to add article");
-  } finally {
-    setIsSubmitting(false);
+    console.log("Vet ID:", vetId);
+    console.log("Articles:", data.data);
+    setMyArticles((data.data || []).filter((a: any) => {
+      if (!a.author) return false;
+      if (typeof a.author === "string") return a.author === vetId;
+      if (typeof a.author === "object" && a.author._id) return a.author._id === vetId;
+      return false;
+    }));
+  } catch {
+    setMyArticles([]);
   }
 };
 
-  // Placeholder stats
+  useEffect(() => {
+    const fetchAppointments = async () => {
+      setAppointmentsLoading(true);
+      setAppointmentsError(null);
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/appointments/vet`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!res.ok) throw new Error("Failed to fetch appointments");
+        const data = await res.json();
+        setUpcomingAppointments(data.data || []);
+      } catch (err: any) {
+        setAppointmentsError(err.message || "Failed to load appointments");
+      } finally {
+        setAppointmentsLoading(false);
+      }
+    };
+    fetchAppointments();
+  }, []);
+
+  // Article form handlers
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedImage(file);
+      setImagePreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handleAddArticle = async (e: any) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setArticleError(null);
+    try {
+      const token = localStorage.getItem('token');
+      const formData = new FormData();
+      formData.append("title", newArticle.title);
+      formData.append("category", newArticle.category);
+      formData.append("excerpt", newArticle.excerpt);
+      formData.append("content", newArticle.content);
+      if (selectedImage) {
+        formData.append("image", selectedImage);
+      }
+
+      const res = await fetch(`${API_URL}/articles`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          // Do NOT set Content-Type for FormData!
+        },
+        body: formData
+      });
+      if (!res.ok) throw new Error("Failed to add article");
+      const data = await res.json();
+      setMyArticles([data.data, ...myArticles]);
+      setShowArticleForm(false);
+      setNewArticle({ title: "", category: "", excerpt: "", content: "", image: "" });
+      setSelectedImage(null);
+      setImagePreview(null);
+    } catch (err: any) {
+      setArticleError(err.message || "Failed to add article");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleArticleInput = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    setNewArticle({
+      ...newArticle,
+      [e.target.name]: e.target.value,
+    });
+  };
+
   const dashboardStats = {
     appointmentsToday: 8,
     patientsTotal: 156,
@@ -181,12 +188,7 @@ const handleAddArticle = async (e: any) => {
     localStorage.removeItem('userId');
     router.push('/login');
   };
-const handleArticleInput = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-  setNewArticle({
-    ...newArticle,
-    [e.target.name]: e.target.value,
-  });
-};
+
   if (isLoading) {
     return (
       <div className="container mx-auto py-16 flex justify-center items-center min-h-[400px]">
@@ -230,8 +232,6 @@ const handleArticleInput = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectEl
         <TabsList className="grid grid-cols-6 mb-8">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="appointments">Appointments</TabsTrigger>
-          <TabsTrigger value="availability">Availability</TabsTrigger>
-          <TabsTrigger value="patients">Patients</TabsTrigger>
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="articles">
             <BookOpen className="mr-2 h-4 w-4" /> Knowledge Hub
@@ -442,22 +442,7 @@ const handleArticleInput = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectEl
             </CardContent>
           </Card>
         </TabsContent>
-        
-        <TabsContent value="availability">
-          <Card>
-            <CardHeader>
-              <CardTitle>Availability Management</CardTitle>
-              <CardDescription>Set your working hours and manage time slots</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-10">
-                <h3 className="text-lg font-medium">Availability Calendar</h3>
-                <p className="text-muted-foreground mb-4">This section would allow you to set your working hours and break times</p>
-                <Button variant="outline">Coming Soon</Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+      
         
         <TabsContent value="patients">
           <Card>
@@ -558,108 +543,110 @@ const handleArticleInput = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectEl
         </TabsContent>
 
  <TabsContent value="articles">
-  <Card>
-    <CardHeader>
-      <div className="flex justify-between items-center">
-        <CardTitle>Knowledge Hub: Your Articles</CardTitle>
-        <Button size="sm" onClick={() => setShowArticleForm(!showArticleForm)}>
-          <Plus className="mr-2 h-4 w-4" /> {showArticleForm ? "Cancel" : "Add Article"}
-        </Button>
-      </div>
-      <CardDescription>
-        Share your expertise with pet owners by publishing articles to the Knowledge Hub.
-      </CardDescription>
-    </CardHeader>
-    <CardContent>
-      {showArticleForm && (
-        <form onSubmit={handleAddArticle} className="space-y-3 mb-6" encType="multipart/form-data">
-          <Input
-            name="title"
-            placeholder="Title"
-            value={newArticle.title}
-            onChange={handleArticleInput}
-            required
-          />
-          <select
-            name="category"
-            value={newArticle.category}
-            onChange={handleArticleInput}
-            required
-            className="w-full border rounded p-2"
-          >
-            <option value="">Select Category</option>
-            <option value="Cats">Cats</option>
-            <option value="Small Pets">Small Pets</option>
-            <option value="Dogs">Dogs</option>
-            <option value="Birds">Birds</option>
-            <option value="Fish">Fish</option>
-          </select>
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleImageChange}
-          />
-          {imagePreview && (
-            <img
-              src={imagePreview}
-              alt="Preview"
-              className="w-48 h-32 object-cover rounded mb-2"
-            />
-          )}
-          <Input
-            name="excerpt"
-            placeholder="Short Excerpt"
-            value={newArticle.excerpt}
-            onChange={handleArticleInput}
-            required
-          />
-          <textarea
-            name="content"
-            placeholder="Full Article Content"
-            value={newArticle.content}
-            onChange={handleArticleInput}
-            required
-            className="w-full min-h-[100px] border rounded p-2"
-          />
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Adding..." : "Add Article"}
-          </Button>
-          {articleError && <div className="text-red-500">{articleError}</div>}
-        </form>
-      )}
-
-      <div>
-        {myArticles.length === 0 ? (
-          <p className="text-muted-foreground">You haven't published any articles yet.</p>
-        ) : (
-          <div className="grid gap-4">
-            {myArticles.map((article) => (
-              <Card key={article._id}>
-                <div className="flex flex-col md:flex-row">
-                  {article.image && (
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <CardTitle>Knowledge Hub: Your Articles</CardTitle>
+                <Button size="sm" onClick={() => setShowArticleForm(!showArticleForm)}>
+                  <Plus className="mr-2 h-4 w-4" /> {showArticleForm ? "Cancel" : "Add Article"}
+                </Button>
+              </div>
+              <CardDescription>
+                Share your expertise with pet owners by publishing articles to the Knowledge Hub.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {showArticleForm && (
+                <form onSubmit={handleAddArticle} className="space-y-3 mb-6" encType="multipart/form-data">
+                  <Input
+                    name="title"
+                    placeholder="Title"
+                    value={newArticle.title}
+                    onChange={handleArticleInput}
+                    required
+                  />
+                  <select
+                    name="category"
+                    value={newArticle.category}
+                    onChange={handleArticleInput}
+                    required
+                    className="w-full border rounded p-2"
+                  >
+                    <option value="">Select Category</option>
+                    <option value="Cats">Cats</option>
+                    <option value="Small Pets">Small Pets</option>
+                    <option value="Dogs">Dogs</option>
+                    <option value="Birds">Birds</option>
+                    <option value="Fish">Fish</option>
+                  </select>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                  />
+                  {imagePreview && (
                     <img
-                      src={article.image}
-                      alt={article.title}
-                      className="w-full md:w-48 h-32 object-cover rounded-l"
+                      src={imagePreview}
+                      alt="Preview"
+                      className="w-48 h-32 object-cover rounded mb-2"
                     />
                   )}
-                  <div className="flex-1 p-4">
-                    <h3 className="font-semibold text-lg">{article.title}</h3>
-                    <p className="text-sm text-muted-foreground">{article.category}</p>
-                    <p className="mt-2">{article.excerpt}</p>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Published: {new Date(article.date).toLocaleDateString()}
-                    </p>
+                  <Input
+                    name="excerpt"
+                    placeholder="Short Excerpt"
+                    value={newArticle.excerpt}
+                    onChange={handleArticleInput}
+                    required
+                  />
+                  <textarea
+                    name="content"
+                    placeholder="Full Article Content"
+                    value={newArticle.content}
+                    onChange={handleArticleInput}
+                    required
+                    className="w-full min-h-[100px] border rounded p-2"
+                  />
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? "Adding..." : "Add Article"}
+                  </Button>
+                  {articleError && <div className="text-red-500">{articleError}</div>}
+                </form>
+              )}
+
+              <div>
+                {myArticles.length === 0 ? (
+                  <p className="text-muted-foreground">You haven't published any articles yet.</p>
+                ) : (
+                  <div className="grid gap-4">
+                    {[...myArticles]
+                      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                      .map((article) => (
+                        <Card key={article._id}>
+                          <div className="flex flex-col md:flex-row">
+                            {article.image && (
+                              <img
+                                src={article.image}
+                                alt={article.title}
+                                className="w-full md:w-48 h-32 object-cover rounded-l"
+                              />
+                            )}
+                            <div className="flex-1 p-4">
+                              <h3 className="font-semibold text-lg">{article.title}</h3>
+                              <p className="text-sm text-muted-foreground">{article.category}</p>
+                              <p className="mt-2">{article.excerpt}</p>
+                              <p className="text-xs text-muted-foreground mt-2">
+                                Published: {new Date(article.date).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+                        </Card>
+                      ))}
                   </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
-    </CardContent>
-  </Card>
-</TabsContent>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
       </Tabs>
     </div>
