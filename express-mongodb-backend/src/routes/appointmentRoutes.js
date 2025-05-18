@@ -70,4 +70,26 @@ router.put('/:id', protect, authorize('veterinarian'), asyncHandler(async (req, 
   });
 }));
 
+router.put("/:id", protect, async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!["completed", "cancelled"].includes(status)) {
+      return res.status(400).json({ success: false, error: "Invalid status value" });
+    }
+
+    const appointment = await Appointment.findOne({ _id: req.params.id, vetId: req.user._id });
+    if (!appointment) {
+      return res.status(404).json({ success: false, error: "Appointment not found or not assigned to you" });
+    }
+
+    appointment.status = status;
+    await appointment.save();
+
+    res.status(200).json({ success: true, message: "Appointment status updated", data: appointment });
+  } catch (error) {
+    console.error("Error updating appointment:", error.message, error.stack);
+    res.status(500).json({ success: false, error: "Failed to update appointment status" });
+  }
+});
+
 module.exports = router;

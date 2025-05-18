@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
@@ -191,13 +192,32 @@ export default function VetDashboard() {
     router.push('/login');
   };
 
-  // --- Accept/Decline frontend only ---
-  const handleFrontendAppointmentAction = (idx: number, action: "accepted" | "declined") => {
-    setUpcomingAppointments((prev) =>
-      prev.map((a, i) =>
-        i === idx ? { ...a, status: action } : a
-      )
-    );
+  // Handle appointment acceptance or rejection
+  const handleAppointmentAction = async (appointmentId: string, action: "completed" | "cancelled") => {
+    setIsSubmitting(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_URL}/appointments/${appointmentId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ status: action })
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(`Failed to update appointment: ${res.status} - ${errorText}`);
+      }
+
+      // Refresh appointments after successful update
+      await fetchAppointments();
+    } catch (err: any) {
+      setAppointmentsError(err.message || "Failed to update appointment status");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (isLoading) {
@@ -233,6 +253,9 @@ export default function VetDashboard() {
           </p>
         </div>
         <div className="mt-4 md:mt-0">
+          <Button variant="destructive" onClick={handleLogout}>
+            Logout
+          </Button>
         </div>
       </div>
 
@@ -320,14 +343,14 @@ export default function VetDashboard() {
                       <div className="text-muted-foreground text-center">No upcoming appointments.</div>
                     ) : (
                       upcomingAppointments.map((appointment) => (
-                        <div key={appointment._id} className="flex items-start justify-between border-b pb-4 last:border-0 last:pb-0">
-                          <div className="flex items-start gap-4">
+                        <div key={appointment._id} className="flex flex-col md:flex-row items-start justify-between border-b pb-4 last:border-0 last:pb-0">
+                          <div className="flex items-start gap-4 flex-1">
                             <Avatar className="h-10 w-10 border">
                               <AvatarFallback>
                                 {appointment.petName ? appointment.petName.charAt(0) : "P"}
                               </AvatarFallback>
                             </Avatar>
-                            <div>
+                            <div className="flex-1">
                               <p className="font-medium">{appointment.petName || "Pet"}</p>
                               <p className="text-sm text-muted-foreground">
                                 Owner: {appointment.ownerName || "Unknown"}
@@ -337,11 +360,41 @@ export default function VetDashboard() {
                               </p>
                             </div>
                           </div>
-                          <div className="text-right">
-                            <Badge variant={appointment.date === "Today" ? "default" : "outline"}>
+                          <div className="text-right mt-2 md:mt-0">
+                            <Badge variant={appointment.date === "Today" ? "default" : "outline"} className="mb-2">
                               {appointment.date || appointment.appointmentDate}
                             </Badge>
-                            <p className="mt-1 text-sm font-medium">{appointment.time || ""}</p>
+                            <p className="text-sm font-medium">{appointment.time || ""}</p>
+                            {/* Action Buttons */}
+                            <div className="flex gap-2 mt-2 justify-end">
+                              {appointment.status === "scheduled" ? (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    className="bg-green-600 hover:bg-green-700 text-white"
+                                    onClick={() => handleAppointmentAction(appointment._id, "completed")}
+                                    disabled={isSubmitting}
+                                  >
+                                    <CheckCircle className="h-4 w-4 mr-1" /> Accept
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    className="bg-red-600 hover:bg-red-700 text-white"
+                                    onClick={() => handleAppointmentAction(appointment._id, "cancelled")}
+                                    disabled={isSubmitting}
+                                  >
+                                    <AlertCircle className="h-4 w-4 mr-1" /> Decline
+                                  </Button>
+                                </>
+                              ) : (
+                                <Badge
+                                  variant={appointment.status === "completed" ? "default" : "destructive"}
+                                  className="mt-2"
+                                >
+                                  {appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1)}
+                                </Badge>
+                              )}
+                            </div>
                           </div>
                         </div>
                       ))
@@ -424,7 +477,6 @@ export default function VetDashboard() {
           </Card>
         </TabsContent>
         
-
         <TabsContent value="appointments">
           <Card>
             <CardHeader>
@@ -438,68 +490,87 @@ export default function VetDashboard() {
             </CardHeader>
             <CardContent>
               {appointmentsLoading ? (
-                <div className="text-center py-4">Loading...</div>
+                <div className="text-center py-4">
+                  <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
+                  Loading appointments...
+                </div>
               ) : appointmentsError ? (
-                <div className="text-center text-red-500 py-4">{appointmentsError}</div>
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Error</AlertTitle>
+                  <AlertDescription>{appointmentsError}</AlertDescription>
+                </Alert>
+              ) : upcomingAppointments.length === 0 ? (
+                <div className="text-muted-foreground text-center py-4">
+                  No appointments found.
+                </div>
               ) : (
-                <div className="space-y-4">
-                  {upcomingAppointments.length === 0 ? (
-                    <div className="text-muted-foreground text-center">No appointments found.</div>
-                  ) : (
-                    upcomingAppointments.map((appointment, idx) => (
-                      <Card key={appointment._id}>
-                        <div className="flex items-start justify-between p-4">
-                          <div className="flex items-start gap-4">
-                            <Avatar className="h-10 w-10 border">
-                              <AvatarFallback>
-                                {appointment.petName ? appointment.petName.charAt(0) : "P"}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <p className="font-medium">{appointment.petName || "Pet"}</p>
-                              <p className="text-sm text-muted-foreground">
-                                Owner: {appointment.ownerName || "Unknown"}
-                              </p>
-                              <p className="text-sm text-muted-foreground">
-                                {appointment.reason || ""}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="text-right">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Pet Name</TableHead>
+                        <TableHead>Owner</TableHead>
+                        <TableHead>Reason</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Time</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {upcomingAppointments.map((appointment) => (
+                        <TableRow key={appointment._id}>
+                          <TableCell className="font-medium">
+                            {appointment.petName || "Pet"}
+                          </TableCell>
+                          <TableCell>
+                            {appointment.ownerName || "Unknown"}
+                          </TableCell>
+                          <TableCell>
+                            {appointment.reason || "-"}
+                          </TableCell>
+                          <TableCell>
                             <Badge variant={appointment.date === "Today" ? "default" : "outline"}>
                               {appointment.date || appointment.appointmentDate}
                             </Badge>
-                            <p className="mt-1 text-sm font-medium">{appointment.time || ""}</p>
-                            {/* Accept/Decline Buttons (frontend only) */}
-                            {appointment.status === "pending" && (
-                              <div className="flex gap-2 mt-2">
+                          </TableCell>
+                          <TableCell>
+                            {appointment.time || "-"}
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant={appointment.status === "completed" ? "default" : appointment.status === "scheduled" ? "outline" : "destructive"}
+                            >
+                              {appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {appointment.status === "scheduled" ? (
+                              <div className="flex justify-end gap-2">
                                 <Button
                                   size="sm"
-                                  variant="default"
-                                  onClick={() => handleFrontendAppointmentAction(idx, "accepted")}
+                                  className="bg-green-600 hover:bg-green-700 text-white"
+                                  onClick={() => handleAppointmentAction(appointment._id, "completed")}
+                                  disabled={isSubmitting}
                                 >
-                                  Accept
+                                  <CheckCircle className="h-4 w-4 mr-1" /> Accept
                                 </Button>
                                 <Button
                                   size="sm"
-                                  variant="destructive"
-                                  onClick={() => handleFrontendAppointmentAction(idx, "declined")}
+                                  className="bg-red-600 hover:bg-red-700 text-white"
+                                  onClick={() => handleAppointmentAction(appointment._id, "cancelled")}
+                                  disabled={isSubmitting}
                                 >
-                                  Decline
+                                  <AlertCircle className="h-4 w-4 mr-1" /> Decline
                                 </Button>
                               </div>
-                            )}
-                            {appointment.status === "accepted" && (
-                              <Badge variant="default" className="mt-2">Accepted</Badge>
-                            )}
-                            {appointment.status === "declined" && (
-                              <Badge variant="destructive" className="mt-2">Declined</Badge>
-                            )}
-                          </div>
-                        </div>
-                      </Card>
-                    ))
-                  )}
+                            ) : null}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </div>
               )}
             </CardContent>
@@ -703,7 +774,6 @@ export default function VetDashboard() {
             </CardContent>
           </Card>
         </TabsContent>
-
       </Tabs>
     </div>
   );
