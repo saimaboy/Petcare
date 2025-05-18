@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -42,6 +42,16 @@ export default function PharmacyDashboard() {
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState("all");
+
+  // Add product states
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Edit product states
+  const [editSelectedImage, setEditSelectedImage] = useState<File | null>(null);
+  const [editImagePreview, setEditImagePreview] = useState<string | null>(null);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
 
   const [newProduct, setNewProduct] = useState({
     name: "",
@@ -131,6 +141,15 @@ export default function PharmacyDashboard() {
     router.push('/login');
   };
 
+  // When opening edit dialog, reset image preview
+  useEffect(() => {
+    if (isEditDialogOpen && editingProduct) {
+      setEditImagePreview(editingProduct.image || null);
+      setEditSelectedImage(null);
+      if (editFileInputRef.current) editFileInputRef.current.value = "";
+    }
+  }, [isEditDialogOpen, editingProduct]);
+
   // Filter products based on search term and category
   const filteredProducts = products.filter((product) => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -158,6 +177,14 @@ export default function PharmacyDashboard() {
     });
   };
 
+  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedImage(file);
+      setImagePreview(URL.createObjectURL(file));
+    }
+  };
+
   // Handle select change for category
   const handleCategoryChange = (category) => {
     setNewProduct({
@@ -166,13 +193,13 @@ export default function PharmacyDashboard() {
     });
   };
 
-  // Handle input change for editing product
-  const handleEditChange = (e) => {
-    const { name, value } = e.target;
-    setEditingProduct({
-      ...editingProduct,
-      [name]: value,
-    });
+  // Edit image file change
+  const handleEditImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setEditSelectedImage(file);
+      setEditImagePreview(URL.createObjectURL(file));
+    }
   };
 
   // Handle edit category change
@@ -183,6 +210,15 @@ export default function PharmacyDashboard() {
     });
   };
 
+  // Handle edit input change
+  const handleEditChange = (e) => {
+    const { name, value } = e.target;
+    setEditingProduct({
+      ...editingProduct,
+      [name]: value,
+    });
+  };
+
   // Add a new product
   const handleAddProduct = async (e) => {
     e.preventDefault();
@@ -190,28 +226,31 @@ export default function PharmacyDashboard() {
 
     try {
       const token = localStorage.getItem('token');
+      const formData = new FormData();
+      formData.append("name", newProduct.name);
+      formData.append("description", newProduct.description);
+      formData.append("price", newProduct.price);
+      formData.append("category", newProduct.category);
+      formData.append("stock", newProduct.stock);
+      if (selectedImage) {
+        formData.append("image", selectedImage);
+      }
 
       const response = await fetch(`${API_URL}/products`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          // Do NOT set Content-Type for FormData!
         },
-        body: JSON.stringify({
-          ...newProduct,
-          price: parseFloat(newProduct.price),
-          stock: parseInt(newProduct.stock)
-        })
+        body: formData
       });
 
       if (!response.ok) {
         throw new Error(`Failed to add product: ${response.statusText}`);
       }
 
-      // Instead of just updating local state, re-fetch products
       await fetchProductsAndProfile();
 
-      // Reset form and close dialog
       setNewProduct({
         name: "",
         description: "",
@@ -220,6 +259,9 @@ export default function PharmacyDashboard() {
         stock: "",
         image: "",
       });
+      setSelectedImage(null);
+      setImagePreview(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
       setIsAddDialogOpen(false);
 
     } catch (error) {
@@ -230,25 +272,30 @@ export default function PharmacyDashboard() {
     }
   };
 
-  // Edit an existing product
+  // Edit an existing product (with image support)
   const handleEditProduct = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
 
     try {
       const token = localStorage.getItem('token');
+      const formData = new FormData();
+      formData.append("name", editingProduct.name);
+      formData.append("description", editingProduct.description);
+      formData.append("price", editingProduct.price);
+      formData.append("category", editingProduct.category);
+      formData.append("stock", editingProduct.stock);
+      if (editSelectedImage) {
+        formData.append("image", editSelectedImage);
+      }
 
       const response = await fetch(`${API_URL}/products/${editingProduct._id}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          // Do NOT set Content-Type for FormData!
         },
-        body: JSON.stringify({
-          ...editingProduct,
-          price: parseFloat(editingProduct.price),
-          stock: parseInt(editingProduct.stock)
-        })
+        body: formData
       });
 
       if (!response.ok) {
@@ -261,6 +308,8 @@ export default function PharmacyDashboard() {
       // Reset form and close dialog
       setEditingProduct(null);
       setIsEditDialogOpen(false);
+      setEditSelectedImage(null);
+      setEditImagePreview(null);
 
     } catch (error) {
       console.error("Error updating product:", error);
@@ -629,15 +678,22 @@ export default function PharmacyDashboard() {
               </div>
               
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="image" className="text-right">Image URL</Label>
-                <Input 
-                  id="image" 
+                <Label htmlFor="image" className="text-right">Image</Label>
+                <input
+                  id="image"
                   name="image"
-                  value={newProduct.image}
-                  onChange={handleInputChange}
-                  className="col-span-3" 
+                  type="file"
+                  accept="image/*"
+                  ref={fileInputRef}
+                  onChange={handleImageFileChange}
+                  className="col-span-3"
                 />
               </div>
+              {imagePreview && (
+                <div className="col-span-4 flex justify-center mb-2">
+                  <img src={imagePreview} alt="Preview" className="h-24 rounded" />
+                </div>
+              )}
               
               <div className="grid grid-cols-4 items-start gap-4">
                 <Label htmlFor="description" className="text-right pt-2">Description</Label>
@@ -682,20 +738,19 @@ export default function PharmacyDashboard() {
               <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="edit-name" className="text-right">Name</Label>
-                  <Input 
-                    id="edit-name" 
+                  <Input
+                    id="edit-name"
                     name="name"
                     value={editingProduct.name}
                     onChange={handleEditChange}
-                    className="col-span-3" 
+                    className="col-span-3"
                     required
                   />
                 </div>
-                
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="edit-category" className="text-right">Category</Label>
-                  <Select 
-                    value={editingProduct.category} 
+                  <Select
+                    value={editingProduct.category}
                     onValueChange={handleEditCategoryChange}
                     name="category"
                   >
@@ -709,64 +764,67 @@ export default function PharmacyDashboard() {
                     </SelectContent>
                   </Select>
                 </div>
-                
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="edit-price" className="text-right">Price ($)</Label>
-                  <Input 
-                    id="edit-price" 
+                  <Input
+                    id="edit-price"
                     name="price"
                     type="number"
                     step="0.01"
                     min="0.01"
                     value={editingProduct.price}
                     onChange={handleEditChange}
-                    className="col-span-3" 
+                    className="col-span-3"
                     required
                   />
                 </div>
-                
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="edit-stock" className="text-right">Stock</Label>
-                  <Input 
-                    id="edit-stock" 
+                  <Input
+                    id="edit-stock"
                     name="stock"
                     type="number"
                     min="0"
                     step="1"
                     value={editingProduct.stock}
                     onChange={handleEditChange}
-                    className="col-span-3" 
+                    className="col-span-3"
                     required
                   />
                 </div>
-                
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="edit-image" className="text-right">Image URL</Label>
-                  <Input 
-                    id="edit-image" 
+                  <Label htmlFor="edit-image" className="text-right">Image</Label>
+                  <input
+                    id="edit-image"
                     name="image"
-                    value={editingProduct.image}
-                    onChange={handleEditChange}
-                    className="col-span-3" 
+                    type="file"
+                    accept="image/*"
+                    ref={editFileInputRef}
+                    onChange={handleEditImageFileChange}
+                    className="col-span-3"
                   />
                 </div>
-                
+                {editImagePreview && (
+                  <div className="col-span-4 flex justify-center mb-2">
+                    <img src={editImagePreview} alt="Preview" className="h-24 rounded" />
+                  </div>
+                )}
                 <div className="grid grid-cols-4 items-start gap-4">
                   <Label htmlFor="edit-description" className="text-right pt-2">Description</Label>
-                  <Textarea 
-                    id="edit-description" 
+                  <Textarea
+                    id="edit-description"
                     name="description"
                     value={editingProduct.description}
                     onChange={handleEditChange}
-                    className="col-span-3 min-h-[100px]" 
+                    className="col-span-3 min-h-[100px]"
                     required
                   />
                 </div>
               </div>
               <DialogFooter>
-                <Button 
-                  type="button" 
-                  variant="outline" 
+                <Button
+                  type="button"
+                  variant="outline"
                   onClick={() => setIsEditDialogOpen(false)}
                 >
                   Cancel

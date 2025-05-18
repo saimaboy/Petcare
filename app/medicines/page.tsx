@@ -81,7 +81,17 @@ export default function MedicinesPage() {
         {filteredMedicines.length > 0 ? (
           filteredMedicines.map((item: any) => (
             <Card key={item._id} className="flex flex-col">
-              <img src={item.image} alt={item.name} className="w-full h-48 object-cover rounded-t-md" />
+<img
+  src={
+    item.image
+      ? item.image.startsWith("http")
+        ? item.image
+        : `http://localhost:5000/${item.image.replace(/^\/+/, "")}`
+      : "/placeholder.svg"
+  }
+  alt={item.name}
+  className="w-full h-48 object-cover rounded-t-md"
+/>
               <CardHeader>
                 <CardTitle>{item.name}</CardTitle>
                 <CardDescription>{item.description}</CardDescription>
