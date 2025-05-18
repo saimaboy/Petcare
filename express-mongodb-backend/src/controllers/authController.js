@@ -69,7 +69,7 @@ exports.register = asyncHandler(async (req, res, next) => {
 
 /**
  * @desc    Login user
- * @route   POST /api/auth/login
+ On December 31st, 2024: * @route   POST /api/auth/login
  * @access  Public
  */
 exports.login = asyncHandler(async (req, res, next) => {
@@ -126,7 +126,6 @@ exports.getMe = async (req, res) => {
         error: 'Not authorized to access this route'
       });
     }
-    
     // Verify token
     let decoded;
     try {
@@ -161,7 +160,8 @@ exports.getMe = async (req, res) => {
         address: user.address,
         businessName: user.businessName,
         licenseNumber: user.licenseNumber,
-        serviceType: user.serviceType
+        serviceType: user.serviceType,
+        profileImage: user.profileImage
       }
     });
   } catch (error) {
@@ -195,6 +195,7 @@ exports.updateProfile = asyncHandler(async (req, res, next) => {
     phoneNumber, 
     businessName, 
     licenseNumber,
+    serviceType,
     address 
   } = req.body;
 
@@ -203,9 +204,10 @@ exports.updateProfile = asyncHandler(async (req, res, next) => {
   if (phoneNumber) user.phoneNumber = phoneNumber;
 
   // Update service provider specific fields
-  if (user.role === 'veterinarian' || user.role === 'pharmacist') {
+  if (user.role === 'veterinarian' || user.role === 'pharmacist' || user.role === 'service_provider') {
     if (businessName) user.businessName = businessName;
     if (licenseNumber) user.licenseNumber = licenseNumber;
+    if (serviceType) user.serviceType = serviceType;
   }
 
   // Update address
@@ -234,7 +236,8 @@ exports.updateProfile = asyncHandler(async (req, res, next) => {
       address: user.address,
       businessName: user.businessName,
       licenseNumber: user.licenseNumber,
-      serviceType: user.serviceType
+      serviceType: user.serviceType,
+      profileImage: user.profileImage
     }
   });
 });
@@ -403,7 +406,8 @@ const sendTokenResponse = (user, statusCode, res) => {
       phoneNumber: user.phoneNumber,
       address: user.address,
       businessName: user.businessName,
-      serviceType: user.serviceType
+      serviceType: user.serviceType,
+      profileImage: user.profileImage
     }
   });
 };

@@ -3,8 +3,8 @@
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
-import { Loader2, User, MapPin, Phone, Mail, Building, Award, Camera, X, Edit, LogOut, Save, Check } from "lucide-react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Loader2, User, MapPin, Phone, Mail, Building, Award, Camera, X, Edit, LogOut, Check } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -21,11 +21,13 @@ export default function UserProfile() {
   const [error, setError] = useState(null)
   const [profileImage, setProfileImage] = useState(null)
   const [isUploadingImage, setIsUploadingImage] = useState(false)
+  const [imagePreview, setImagePreview] = useState(null)
   const fileInputRef = useRef(null)
-  
+  const dropZoneRef = useRef(null)
+
   // Add a timestamp to force image refresh when updated
   const [imageTimestamp, setImageTimestamp] = useState(Date.now())
-  
+
   // Add edit mode state
   const [isEditMode, setIsEditMode] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -47,23 +49,18 @@ export default function UserProfile() {
 
   // Fetch user data on component mount
   useEffect(() => {
-    // Check if running in browser environment
     if (typeof window === 'undefined') return;
-    
+
     const fetchUserData = async () => {
       try {
-        // Try to get the token from localStorage
         const token = localStorage.getItem('token');
-        
+
         if (!token) {
           console.log('No auth token found, redirecting to login');
           router.push('/login?redirect=/profile');
           return;
         }
-        
-        console.log('Attempting to fetch user data with token');
-        
-        // Try to fetch the user data
+
         const response = await fetch(`${API_URL}/auth/me`, {
           method: 'GET',
           headers: {
@@ -71,10 +68,7 @@ export default function UserProfile() {
             'Content-Type': 'application/json'
           }
         });
-        
-        console.log('Response status:', response.status);
-        
-        // Handle unauthorized response
+
         if (response.status === 401) {
           console.log('Auth token expired or invalid, redirecting to login');
           localStorage.removeItem('token');
@@ -82,23 +76,18 @@ export default function UserProfile() {
           router.push('/login?redirect=/profile');
           return;
         }
-        
-        // Handle other errors
+
         if (!response.ok) {
           throw new Error(`Failed to fetch user data: ${response.statusText}`);
         }
-        
-        // Parse and use the data
+
         const data = await response.json();
-        
+
         if (!data.success || !data.data) {
           throw new Error('Invalid response format from server');
         }
-        
-        console.log('User data retrieved successfully');
+
         setUser(data.data);
-        
-        // Initialize form data with user data
         setFormData({
           name: data.data.name || '',
           email: data.data.email || '',
@@ -114,26 +103,23 @@ export default function UserProfile() {
           licenseNumber: data.data.licenseNumber || '',
           serviceType: data.data.serviceType || ''
         });
-        
-        // Set profile image if available
+
         if (data.data.profileImage) {
           setProfileImage(data.data.profileImage);
         }
       } catch (error) {
         console.error("Error fetching user data:", error);
         setError("Failed to load profile data. Please try again later.");
-        
-        // If there's an error fetching data, we might need to redirect to login
         setTimeout(() => {
           localStorage.removeItem('token');
           localStorage.removeItem('userId');
           router.push('/login?redirect=/profile');
-        }, 3000); // Show error message for 3 seconds before redirecting
+        }, 3000);
       } finally {
         setIsLoading(false);
       }
     };
-    
+
     fetchUserData();
   }, [router]);
 
@@ -142,7 +128,6 @@ export default function UserProfile() {
   };
 
   const handleCancelEdit = () => {
-    // Reset form data to current user data
     setFormData({
       name: user?.name || '',
       email: user?.email || '',
@@ -158,16 +143,13 @@ export default function UserProfile() {
       licenseNumber: user?.licenseNumber || '',
       serviceType: user?.serviceType || ''
     });
-    
-    // Exit edit mode
     setIsEditMode(false);
   };
-  
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    
+
     if (name.includes('.')) {
-      // Handle nested objects (like address.street)
       const [parent, child] = name.split('.');
       setFormData(prev => ({
         ...prev,
@@ -177,63 +159,65 @@ export default function UserProfile() {
         }
       }));
     } else {
-      // Handle regular fields
       setFormData(prev => ({
         ...prev,
         [name]: value
       }));
     }
   };
-  
- const handleSaveProfile = async () => {
-  setIsSaving(true);
-  
-  try {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      throw new Error('Authentication required');
-    }
-    
-    // Debug the user object structure
-    console.log("User object structure:", user);
-    
-    // Try direct PUT to /auth/me endpoint which doesn't require ID
-    console.log('Updating profile without explicit ID');
-    
-    const response = await fetch(`${API_URL}/auth/me`, {
-      method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(formData)
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Server error:', errorText);
-      throw new Error('Failed to update profile');
-    }
-    
-    const result = await response.json();
-    
-    // Update local user state with the updated data
-    setUser(result.data);
-    
-    // Exit edit mode
-    setIsEditMode(false);
-    
-    // Show success message
-    alert('Profile updated successfully!');
-  } catch (error) {
-    console.error('Error updating profile:', error);
-    alert(`Failed to update profile: ${error.message}`);
-  } finally {
-    setIsSaving(false);
-  }
-};
 
-const handleProfileImageClick = () => {
+  const handleSaveProfile = async () => {
+    setIsSaving(true);
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+
+      console.log("Form data being sent:", formData);
+
+      const response = await fetch(`${API_URL}/auth/updateprofile`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(formData)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Server error:', errorText);
+        throw new Error('Failed to update profile');
+      }
+
+      const result = await response.json();
+      setUser(result.data);
+      setIsEditMode(false);
+      alert('Profile updated successfully!');
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      alert(`Failed to update profile: ${error.message}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const validateImageFile = (file) => {
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
+
+    if (!allowedTypes.includes(file.type)) {
+      return 'Only JPEG, PNG, or GIF images are allowed.';
+    }
+    if (file.size > maxSize) {
+      return 'Image size must be less than 5MB.';
+    }
+    return null;
+  };
+
+  const handleProfileImageClick = () => {
     fileInputRef.current?.click();
   };
 
@@ -241,20 +225,28 @@ const handleProfileImageClick = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const validationError = validateImageFile(file);
+    if (validationError) {
+      alert(validationError);
+      return;
+    }
+
+    // Show preview
+    const reader = new FileReader();
+    reader.onload = () => setImagePreview(reader.result);
+    reader.readAsDataURL(file);
+
     try {
       setIsUploadingImage(true);
-      
-      // Create form data
+
       const formData = new FormData();
       formData.append('profileImage', file);
-      
-      // Get token
+
       const token = localStorage.getItem('token');
       if (!token) {
         throw new Error('Authentication required');
       }
-      
-      // Upload image
+
       const response = await fetch(`${API_URL}/users/profile-image`, {
         method: 'POST',
         headers: {
@@ -262,43 +254,120 @@ const handleProfileImageClick = () => {
         },
         body: formData
       });
-      
+
       if (!response.ok) {
-        throw new Error('Failed to upload profile image');
+        const errorText = await response.text();
+        throw new Error(`Failed to upload profile image: ${errorText}`);
       }
-      
+
       const result = await response.json();
-      
+
       if (result.success && result.profileImage) {
-        // Update the timestamp to force image refresh
         setImageTimestamp(Date.now());
         setProfileImage(result.profileImage);
-        
-        // Update user object with new profile image
         setUser(prev => ({
           ...prev,
           profileImage: result.profileImage
         }));
+        setImagePreview(null); // Clear preview after successful upload
+        alert('Profile image uploaded successfully!');
+      } else {
+        throw new Error('Invalid response from server');
       }
     } catch (error) {
       console.error('Error uploading profile image:', error);
-      alert('Failed to upload profile image. Please try again.');
+      alert(`Failed to upload profile image: ${error.message}`);
     } finally {
       setIsUploadingImage(false);
     }
   };
 
-  const removeProfileImage = async () => {
+  const handleDrop = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dropZoneRef.current.classList.remove('border-primary');
+
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+
+    const validationError = validateImageFile(file);
+    if (validationError) {
+      alert(validationError);
+      return;
+    }
+
+    // Show preview
+    const reader = new FileReader();
+    reader.onload = () => setImagePreview(reader.result);
+    reader.readAsDataURL(file);
+
     try {
       setIsUploadingImage(true);
-      
-      // Get token
+
+      const formData = new FormData();
+      formData.append('profileImage', file);
+
       const token = localStorage.getItem('token');
       if (!token) {
         throw new Error('Authentication required');
       }
-      
-      // Remove image
+
+      const response = await fetch(`${API_URL}/users/profile-image`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to upload profile image: ${errorText}`);
+      }
+
+      const result = await response.json();
+
+      if (result.success && result.profileImage) {
+        setImageTimestamp(Date.now());
+        setProfileImage(result.profileImage);
+        setUser(prev => ({
+          ...prev,
+          profileImage: result.profileImage
+        }));
+        setImagePreview(null);
+        alert('Profile image uploaded successfully!');
+      } else {
+        throw new Error('Invalid response from server');
+      }
+    } catch (error) {
+      console.error('Error uploading profile image:', error);
+      alert(`Failed to upload profile image: ${error.message}`);
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dropZoneRef.current.classList.add('border-primary');
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dropZoneRef.current.classList.remove('border-primary');
+  };
+
+  const removeProfileImage = async () => {
+    try {
+      setIsUploadingImage(true);
+
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+
       const response = await fetch(`${API_URL}/users/profile-image`, {
         method: 'DELETE',
         headers: {
@@ -306,19 +375,18 @@ const handleProfileImageClick = () => {
           'Content-Type': 'application/json'
         }
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to remove profile image');
       }
-      
-      // Clear profile image
+
       setProfileImage(null);
-      
-      // Update user object
+      setImagePreview(null);
       setUser(prev => ({
         ...prev,
         profileImage: null
       }));
+      alert('Profile image removed successfully!');
     } catch (error) {
       console.error('Error removing profile image:', error);
       alert('Failed to remove profile image. Please try again.');
@@ -327,12 +395,14 @@ const handleProfileImageClick = () => {
     }
   };
 
+  const cancelImagePreview = () => {
+    setImagePreview(null);
+    fileInputRef.current.value = null;
+  };
+
   const handleLogout = () => {
-    // Remove authentication data
     localStorage.removeItem('token');
     localStorage.removeItem('userId');
-    
-    // Redirect to login page
     router.push('/login');
   };
 
@@ -397,7 +467,7 @@ const handleProfileImageClick = () => {
             )}
           </div>
         </div>
-        
+
         {/* Profile Image Card */}
         <Card className="mb-6">
           <CardHeader>
@@ -405,10 +475,19 @@ const handleProfileImageClick = () => {
             <CardDescription>Your profile image</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center gap-6">
-              <div className="relative">
-                <Avatar className="h-24 w-24 cursor-pointer" onClick={handleProfileImageClick}>
-                  {profileImage ? (
+            <div className="flex flex-col sm:flex-row items-center gap-6">
+              <div
+                ref={dropZoneRef}
+                className="relative w-32 h-32 border-2 border-dashed rounded-full flex items-center justify-center cursor-pointer transition-colors"
+                onClick={handleProfileImageClick}
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+              >
+                <Avatar className="h-28 w-28">
+                  {imagePreview ? (
+                    <AvatarImage src={imagePreview} alt="Preview" />
+                  ) : profileImage ? (
                     <AvatarImage 
                       src={`${profileImage}?t=${imageTimestamp}`} 
                       alt={user?.name} 
@@ -419,6 +498,11 @@ const handleProfileImageClick = () => {
                     </AvatarFallback>
                   )}
                 </Avatar>
+                {isUploadingImage && (
+                  <div className="absolute inset-0 bg-black/30 rounded-full flex items-center justify-center">
+                    <Loader2 className="h-8 w-8 animate-spin text-white" />
+                  </div>
+                )}
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -426,14 +510,9 @@ const handleProfileImageClick = () => {
                   accept="image/jpeg,image/png,image/gif"
                   onChange={handleProfileImageChange}
                 />
-                {isUploadingImage && (
-                  <div className="absolute inset-0 bg-black/30 rounded-full flex items-center justify-center">
-                    <Loader2 className="h-8 w-8 animate-spin text-white" />
-                  </div>
-                )}
               </div>
-              <div>
-                <div className="flex gap-2 mb-2">
+              <div className="flex-1">
+                <div className="flex flex-wrap gap-2 mb-2">
                   <Button 
                     size="sm" 
                     onClick={handleProfileImageClick}
@@ -442,27 +521,41 @@ const handleProfileImageClick = () => {
                     <Camera className="mr-2 h-4 w-4" />
                     {profileImage ? 'Change Photo' : 'Upload Photo'}
                   </Button>
-                  {profileImage && (
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={removeProfileImage}
-                      disabled={isUploadingImage}
-                    >
-                      <X className="mr-2 h-4 w-4" />
-                      Remove
-                    </Button>
+                  {(profileImage || imagePreview) && (
+                    <>
+                      {imagePreview ? (
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={cancelImagePreview}
+                          disabled={isUploadingImage}
+                        >
+                          <X className="mr-2 h-4 w-4" />
+                          Cancel Preview
+                        </Button>
+                      ) : (
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={removeProfileImage}
+                          disabled={isUploadingImage}
+                        >
+                          <X className="mr-2 h-4 w-4" />
+                          Remove
+                        </Button>
+                      )}
+                    </>
                   )}
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Upload a clear photo of yourself. <br />
-                  Recommended size: 500x500 pixels.
+                  Drag and drop or click to upload a clear photo. <br />
+                  JPEG, PNG, or GIF, max 5MB, recommended 500x500 pixels.
                 </p>
               </div>
             </div>
           </CardContent>
         </Card>
-        
+
         {!isEditMode && (
           <Card className="mb-6">
             <CardHeader>
@@ -486,7 +579,7 @@ const handleProfileImageClick = () => {
             </CardContent>
           </Card>
         )}
-        
+
         <div className="space-y-6">
           <Card>
             <CardHeader>
@@ -563,7 +656,7 @@ const handleProfileImageClick = () => {
               )}
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -654,7 +747,7 @@ const handleProfileImageClick = () => {
               )}
             </CardContent>
           </Card>
-          
+
           {(user?.role === 'veterinarian' || user?.role === 'pharmacist' || 
             formData.businessName || formData.licenseNumber || formData.serviceType) && (
             <Card>
@@ -724,7 +817,7 @@ const handleProfileImageClick = () => {
             </Card>
           )}
         </div>
-        
+
         {isEditMode && (
           <div className="mt-8 flex justify-end">
             <div className="flex gap-3">
