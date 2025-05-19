@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Star, Loader2, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { useCart } from "../cart/CartContext"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
 
@@ -15,17 +16,17 @@ export default function AccessoriesPage() {
   const [accessories, setAccessories] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const { addToCart } = useCart()
 
   useEffect(() => {
     const fetchAccessories = async () => {
       setIsLoading(true)
       setError(null)
       try {
-        // Fetch all products with category=accessory
         const res = await fetch(`${API_URL}/products?category=accessory`)
         if (!res.ok) throw new Error("Failed to fetch accessories")
         const data = await res.json()
-        // Filter on frontend as fallback if backend doesn't support ?category=accessory
         const filtered = (data.data || []).filter((item: any) => item.category === "accessory")
         setAccessories(filtered)
       } catch (err: any) {
@@ -40,6 +41,22 @@ export default function AccessoriesPage() {
   const filteredAccessories = accessories.filter((item: any) =>
     item.name.toLowerCase().includes(searchTerm.toLowerCase())
   )
+
+  const handleAddToCart = (item: any) => {
+    addToCart({
+      id: item._id,
+      name: item.name,
+      price: item.price,
+      image: item.image
+        ? item.image.startsWith("http")
+          ? item.image
+          : `http://localhost:5000/${item.image.replace(/^\/+/, "")}`
+        : "/placeholder.svg",
+      quantity: 1,
+    })
+    setSuccessMessage(`${item.name} has been added to your cart!`)
+    setTimeout(() => setSuccessMessage(null), 3000)
+  }
 
   if (isLoading) {
     return (
@@ -77,11 +94,30 @@ export default function AccessoriesPage() {
         />
       </div>
 
+      {successMessage && (
+        <div className="mb-6 max-w-lg mx-auto">
+          <Alert variant="default" className="border-green-500 text-green-700">
+            <AlertTitle>Success</AlertTitle>
+            <AlertDescription>{successMessage}</AlertDescription>
+          </Alert>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredAccessories.length > 0 ? (
           filteredAccessories.map((item: any) => (
             <Card key={item._id} className="flex flex-col">
-              <img src={item.image} alt={item.name} className="w-full h-48 object-cover rounded-t-md" />
+              <img
+                src={
+                  item.image
+                    ? item.image.startsWith("http")
+                      ? item.image
+                      : `http://localhost:5000/${item.image.replace(/^\/+/, "")}`
+                    : "/placeholder.svg"
+                }
+                alt={item.name}
+                className="w-full h-48 object-cover rounded-t-md"
+              />
               <CardHeader>
                 <CardTitle>{item.name}</CardTitle>
                 <CardDescription>{item.description}</CardDescription>
@@ -94,7 +130,9 @@ export default function AccessoriesPage() {
               </CardContent>
               <CardFooter className="flex justify-between items-center">
                 <span className="font-semibold text-lg">${item.price?.toFixed(2)}</span>
-                <Button>Add to Cart</Button>
+                <Button onClick={() => handleAddToCart(item)}>
+                  Add to Cart
+                </Button>
               </CardFooter>
             </Card>
           ))
