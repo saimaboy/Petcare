@@ -169,7 +169,7 @@ export default function Login() {
             </div>
             <div className="text-sm text-center">
               Are you a service provider?{" "}
-              <Link href="/service-provider-register" className="underline underline-offset-4 hover:text-primary">
+              <Link href="/serviceproviderregister" className="underline underline-offset-4 hover:text-primary">
                 Register as a service provider
               </Link>
             </div>
