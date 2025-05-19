@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Calendar, Clock, MapPin, Phone, Star, Building, Award } from "lucide-react"
+import ReactCalendar from "react-calendar";
+import "react-calendar/dist/Calendar.css";
 
 export default function FindVet() {
   const [vets, setVets] = useState([])
