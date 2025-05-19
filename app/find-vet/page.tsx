@@ -239,16 +239,12 @@ const handleBookAppointment = async () => {
                     <TabsTrigger value="calendar">Calendar</TabsTrigger>
                     <TabsTrigger value="availability">Availability</TabsTrigger>
                   </TabsList>
-                  <TabsContent value="calendar" className="p-4">
-                    <div className="flex justify-center">
-                      <Calendar
-                        mode="single"
-                        selected={selectedDate}
-                        onSelect={setSelectedDate}
-                        className="rounded-md border"
-                      />
-                    </div>
-                  </TabsContent>
+<TabsContent value="calendar" className="p-4">
+  <div>
+    <label htmlFor="date">Select Date:</label>
+    <input type="date" id="date" name="date" />
+  </div>
+</TabsContent>
                   <TabsContent value="availability" className="p-4">
                     <div className="space-y-2">
                       <p className="text-sm text-muted-foreground">Available days:</p>
