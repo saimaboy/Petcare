@@ -341,7 +341,7 @@ export default function NearbyServices() {
         <Tabs defaultValue="list" className="w-full">
           <TabsList className="grid w-full max-w-md grid-cols-2">
             <TabsTrigger value="list">List View</TabsTrigger>
-            <TabsTrigger value="map">Map View</TabsTrigger>
+            
           </TabsList>
           <TabsContent value="list" className="mt-4">
             <div className="grid gap-6 md:grid-cols-[1fr_3fr]">
@@ -377,13 +377,6 @@ export default function NearbyServices() {
                       >
                         Veterinarians
                       </Button>
-                      <Button
-                        variant={serviceType === "pharmacy" ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setServiceType("pharmacy")}
-                      >
-                        Pharmacies
-                      </Button>
                     </div>
                   </div>
                 </CardContent>
@@ -407,13 +400,7 @@ export default function NearbyServices() {
                   filteredServices.map((service) => (
                     <Card key={service.id || service._id} className="overflow-hidden">
                       <div className="flex flex-col md:flex-row">
-                        <div className="md:w-1/3">
-                          <img
-                            src={service.image || "/placeholder.svg"}
-                            alt={service.name}
-                            className="h-full w-full object-cover"
-                          />
-                        </div>
+
                         <div className="md:w-2/3 p-4">
                           <CardHeader className="p-0 pb-2">
                             <div className="flex justify-between items-start">
@@ -512,13 +499,6 @@ export default function NearbyServices() {
                         onClick={() => setServiceType("veterinarian")}
                       >
                         Veterinarians
-                      </Button>
-                      <Button
-                        variant={serviceType === "pharmacy" ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setServiceType("pharmacy")}
-                      >
-                        Pharmacies
                       </Button>
                     </div>
                   </div>
